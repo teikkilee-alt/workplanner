@@ -41,7 +41,7 @@
         .month-picker button { background: none; border: none; font-size: 20px; cursor: pointer; font-weight: bold; color: #757575; padding: 0 8px; }
         .month-picker h3 { font-size: 20px; font-weight: bold; }
 
-        /* Calendar Grid - 올바른 7열 그리드 속성 적용 */
+        /* Calendar Grid */
         .calendar-header { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 6px; }
         .calendar-header div:nth-child(1) { color: #D32F2F; }
         .calendar-header div:nth-child(7) { color: #1976D2; }
@@ -183,15 +183,14 @@
 </div>
 
 <script>
-    // ⚠️ Firebase 설정 (본인의 키 정보로 채워주세요)
- const firebaseConfig = {
-  apiKey: "AIzaSyDnwYQ6WT9TVD-y5hbDWU7LkuafgIrivfQ",
-  authDomain: "my-work-planner-4542.firebaseapp.com",
-  projectId: "my-work-planner-4542",
-  storageBucket: "my-work-planner-4542.firebasestorage.app",
-  messagingSenderId: "204177923365",
-  appId: "1:204177923365:web:9e904efcdaefeac46acecc"
-};
+    const firebaseConfig = {
+        apiKey: "AIzaSyDnwYQ6WT9TVD-y5hbDWU7LkuafgIrivfQ",
+        authDomain: "my-work-planner-4542.firebaseapp.com",
+        projectId: "my-work-planner-4542",
+        storageBucket: "my-work-planner-4542.firebasestorage.app",
+        messagingSenderId: "204177923365",
+        appId: "1:204177923365:web:9e904efcdaefeac46acecc"
+    };
 
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
@@ -283,21 +282,33 @@
         return '#FFFFFF';
     }
 
+    function getShiftForDay(d) {
+        if(d <= 10) return userMonthData.shift1to10;
+        if(d <= 20) return userMonthData.shift11to20;
+        if(d <= 30) return userMonthData.shift21to30;
+        return userMonthData.shift31;
+    }
+
     function autoApplyMorningTickets() {
         if(!userMonthData.days) userMonthData.days = {};
         const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
         for(let d=1; d<=totalDays; d++) {
-            let shift = userMonthData.shift1to10;
-            if(d > 10 && d <= 20) shift = userMonthData.shift11to20;
-            else if(d > 20 && d <= 30) shift = userMonthData.shift21to30;
-            else if(d === 31) shift = userMonthData.shift31;
+            let shift = getShiftForDay(d);
+            const isMorning = shift && shift.includes("모닝");
+            const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 
-            if(shift && shift.includes("모닝")) {
-                const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                if(!userMonthData.days[dateKey]) {
-                    userMonthData.days[dateKey] = { earned: 1, used: 0, status: '근무', overtime: 0, memo: '' };
-                } else if(userMonthData.days[dateKey].earned === 0) {
-                    userMonthData.days[dateKey].earned = 1;
+            if(!userMonthData.days[dateKey]) {
+                userMonthData.days[dateKey] = { earned: isMorning ? 1 : 0, used: 0, status: '근무', overtime: 0, memo: '' };
+            } else {
+                const day = userMonthData.days[dateKey];
+                const isNonWork = ['휴무', '연차', '검진'].includes(day.status);
+                
+                if (isNonWork) {
+                    if (day.earned === 1 && isMorning && !day.manualEarned) {
+                        day.earned = 0;
+                    }
+                } else if (isMorning && day.earned === 0 && !day.resetByUser && !day.manualEarned) {
+                    day.earned = 1;
                 }
             }
         }
@@ -316,7 +327,7 @@
         const today = new Date();
         const isCurrentMonth = (today.getFullYear() === currentYear && today.getMonth() === currentMonth);
 
-        // 이전 달 빈 칸 처리
+        // 1. 지난달 빈 칸 처리
         for(let i=0; i<firstDay; i++) {
             const pDay = prevMonthTotalDays - (firstDay - 1 - i);
             const cell = document.createElement('div');
@@ -325,7 +336,7 @@
             grid.appendChild(cell);
         }
 
-        // 이번 달 날짜 그리기
+        // 2. 이번 달 날짜 그리기
         for(let d=1; d<=totalDays; d++) {
             const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             const dayData = (userMonthData.days && userMonthData.days[dateKey]) || { earned:0, used:0, status:'근무', overtime:0, memo:'' };
@@ -339,10 +350,7 @@
                 if(!['휴무', '검진', '연차'].includes(dayData.status)) remainingWorkDays++;
             }
 
-            let shift = userMonthData.shift1to10;
-            if(d > 10 && d <= 20) shift = userMonthData.shift11to20;
-            else if(d > 20 && d <= 30) shift = userMonthData.shift21to30;
-            else if(d === 31) shift = userMonthData.shift31;
+            let shift = getShiftForDay(d);
 
             const cell = document.createElement('div');
             cell.className = `day-cell ${d === selectedDay ? 'selected' : ''}`;
@@ -383,6 +391,16 @@
                 }
             };
 
+            grid.appendChild(cell);
+        }
+
+        // 3. 다음 달 빈 칸 연산 (그리드가 채워지도록 흐리게 표시)
+        const totalRendered = firstDay + totalDays;
+        const nextDaysCount = (7 - (totalRendered % 7)) % 7;
+        for(let n=1; n<=nextDaysCount; n++) {
+            const cell = document.createElement('div');
+            cell.className = 'day-cell other-month';
+            cell.innerHTML = `<div style="color:gray;">${n}</div>`;
             grid.appendChild(cell);
         }
 
@@ -448,13 +466,17 @@
         if(!userMonthData.days[dateKey]) {
             userMonthData.days[dateKey] = { earned:0, used:0, status:'근무', overtime:0, memo:'' };
         }
-        return { data: userMonthData.days[dateKey], key: dateKey };
+        return { data: userMonthData.days[dateKey], key: dateKey, dayNum: selectedDay };
     }
 
     function addTicket(val) {
         const { data } = getSelectedDayData();
-        if(val > 0) data.earned = (data.earned || 0) + val;
-        else data.used = Math.max(0, (data.used || 0) - val);
+        if(val > 0) {
+            data.earned = (data.earned || 0) + val;
+            data.manualEarned = true;
+        } else {
+            data.used = Math.max(0, (data.used || 0) - val);
+        }
         saveData();
     }
 
@@ -462,6 +484,8 @@
         const { data } = getSelectedDayData();
         data.earned = 0;
         data.used = 0;
+        data.resetByUser = true;
+        data.manualEarned = false;
         saveData();
     }
 
@@ -472,24 +496,48 @@
     }
 
     function setStatus(status) {
-        const { data } = getSelectedDayData();
+        const { data, dayNum } = getSelectedDayData();
         data.status = status;
+        
+        const shift = getShiftForDay(dayNum);
+        const isMorning = shift && shift.includes("모닝");
+
+        if (['휴무', '연차', '검진'].includes(status)) {
+            if (isMorning && data.earned === 1 && !data.manualEarned) {
+                data.earned = 0;
+            }
+        } else {
+            if (isMorning && data.earned === 0 && !data.resetByUser) {
+                data.earned = 1;
+            }
+        }
         saveData();
     }
 
     function toggleOffStatus() {
-        const { data } = getSelectedDayData();
-        data.status = data.status === '휴무' ? '검진' : '휴무';
+        const { data, dayNum } = getSelectedDayData();
+        const nextStatus = data.status === '휴무' ? '검진' : '휴무';
+        data.status = nextStatus;
+
+        const shift = getShiftForDay(dayNum);
+        if (shift && shift.includes("모닝") && data.earned === 1 && !data.manualEarned) {
+            data.earned = 0;
+        }
         saveData();
     }
 
     function cycleWorkStatus() {
-        const { data } = getSelectedDayData();
+        const { data, dayNum } = getSelectedDayData();
         const cycle = ['근무', '남', '북', '휴근'];
         let idx = cycle.indexOf(data.status);
         let next = cycle[(idx + 1) % cycle.length];
         data.status = next;
         if(next === '휴근') data.overtime = (data.overtime || 0) + 8.0;
+
+        const shift = getShiftForDay(dayNum);
+        if (shift && shift.includes("모닝") && data.earned === 0 && !data.resetByUser) {
+            data.earned = 1;
+        }
         saveData();
     }
 
