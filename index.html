@@ -314,25 +314,91 @@
         }
     }
 
+    function createCellElement(y, m, d, isOtherMonth) {
+        const dateKey = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        
+        let dayData = (userMonthData.days && userMonthData.days[dateKey]);
+        let shift = getShiftForDay(d);
+
+        if (!dayData) {
+            const isMorning = shift && shift.includes("모닝");
+            dayData = { earned: isMorning ? 1 : 0, used: 0, status: '근무', overtime: 0, memo: '' };
+        }
+
+        const cell = document.createElement('div');
+        cell.className = `day-cell ${isOtherMonth ? 'other-month' : ''} ${(!isOtherMonth && d === selectedDay) ? 'selected' : ''}`;
+
+        if (dayData.status === '휴무') cell.style.background = '#E0E0E0';
+        else if (dayData.status === '검진') cell.style.background = '#C8E6C9';
+        else if (dayData.status === '연차') cell.style.background = '#FFF176';
+        else cell.style.background = getShiftColor(shift);
+
+        const dayOfWeek = new Date(y, m, d).getDay();
+        let dateColor = 'black';
+        if (dayOfWeek === 0) dateColor = '#D32F2F';
+        else if (dayOfWeek === 6) dateColor = '#1976D2';
+
+        let statusText = '';
+        if (dayData.status === '남') statusText = `<span style="color:#1976D2; font-weight:bold;"> (남)</span>`;
+        else if (dayData.status === '북') statusText = `<span style="color:#6A1B9A; font-weight:bold;"> (북)</span>`;
+        else if (dayData.status === '휴근') statusText = `<span style="color:#E65100; font-weight:bold;"> (휴근)</span>`;
+        else if (dayData.status === '검진') statusText = `<span style="color:#2E7D32; font-weight:bold;"> (검진)</span>`;
+
+        let memoIcon = dayData.memo ? `<span style="color:#2E7D32; font-weight:bold;"> ✔</span>` : '';
+
+        cell.innerHTML = `
+            <div style="color:${dateColor};">${d}${statusText}${memoIcon}</div>
+            <div style="font-size:9px; display:flex; gap:2px;">
+                ${dayData.earned > 0 ? `<span style="color:#1976D2; font-weight:bold;">+${dayData.earned}</span>` : ''}
+                ${dayData.used > 0 ? `<span style="color:#D32F2F; font-weight:bold;">-${dayData.used}</span>` : ''}
+            </div>
+            <div style="font-weight:bold; font-size:10px;">${dayData.overtime > 0 ? dayData.overtime + 'h' : ''}</div>
+        `;
+
+        cell.onclick = () => {
+            if (isOtherMonth) {
+                currentYear = y;
+                currentMonth = m;
+                selectedDay = d;
+                loadData();
+            } else {
+                if (selectedDay === d) {
+                    openMemoModal(dayData.memo || '');
+                } else {
+                    selectedDay = d;
+                    renderCalendar();
+                }
+            }
+        };
+
+        return cell;
+    }
+
     function renderCalendar() {
         document.getElementById('current-month-text').innerText = `${currentYear}년 ${currentMonth + 1}월`;
         const grid = document.getElementById('calendar-grid');
         grid.innerHTML = '';
 
+        let prevYear = currentYear;
+        let prevMonth = currentMonth - 1;
+        if (prevMonth < 0) { prevMonth = 11; prevYear--; }
+
+        let nextYear = currentYear;
+        let nextMonth = currentMonth + 1;
+        if (nextMonth > 11) { nextMonth = 0; nextYear++; }
+
         const firstDay = new Date(currentYear, currentMonth, 1).getDay();
         const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
-        const prevMonthTotalDays = new Date(currentYear, currentMonth, 0).getDate();
+        const prevMonthTotalDays = new Date(currentYear, prevMonth + 1, 0).getDate();
 
         let totalEarned = 0, totalUsed = 0, totalOvertime = 0, offDays = 0, remainingWorkDays = 0;
         const today = new Date();
         const isCurrentMonth = (today.getFullYear() === currentYear && today.getMonth() === currentMonth);
 
-        // 1. 지난달 빈 칸 처리
+        // 1. 지난달 빈 칸 및 내용 처리 (투명도 적용)
         for(let i=0; i<firstDay; i++) {
             const pDay = prevMonthTotalDays - (firstDay - 1 - i);
-            const cell = document.createElement('div');
-            cell.className = 'day-cell other-month';
-            cell.innerHTML = `<div style="color:gray;">${pDay}</div>`;
+            const cell = createCellElement(prevYear, prevMonth, pDay, true);
             grid.appendChild(cell);
         }
 
@@ -350,57 +416,15 @@
                 if(!['휴무', '검진', '연차'].includes(dayData.status)) remainingWorkDays++;
             }
 
-            let shift = getShiftForDay(d);
-
-            const cell = document.createElement('div');
-            cell.className = `day-cell ${d === selectedDay ? 'selected' : ''}`;
-            
-            if(dayData.status === '휴무') cell.style.background = '#E0E0E0';
-            else if(dayData.status === '검진') cell.style.background = '#C8E6C9';
-            else if(dayData.status === '연차') cell.style.background = '#FFF176';
-            else cell.style.background = getShiftColor(shift);
-
-            const dayOfWeek = new Date(currentYear, currentMonth, d).getDay();
-            let dateColor = 'black';
-            if(dayOfWeek === 0) dateColor = 'red';
-            else if(dayOfWeek === 6) dateColor = 'blue';
-
-            let statusText = '';
-            if(dayData.status === '남') statusText = `<span style="color:#1976D2; font-weight:bold;"> (남)</span>`;
-            else if(dayData.status === '북') statusText = `<span style="color:#6A1B9A; font-weight:bold;"> (북)</span>`;
-            else if(dayData.status === '휴근') statusText = `<span style="color:#E65100; font-weight:bold;"> (휴근)</span>`;
-            else if(dayData.status === '검진') statusText = `<span style="color:#2E7D32; font-weight:bold;"> (검진)</span>`;
-
-            let memoIcon = dayData.memo ? `<span style="color:#2E7D32; font-weight:bold;"> ✔</span>` : '';
-
-            cell.innerHTML = `
-                <div style="color:${dateColor};">${d}${statusText}${memoIcon}</div>
-                <div style="font-size:9px; display:flex; gap:2px;">
-                    ${dayData.earned > 0 ? `<span style="color:#1976D2; font-weight:bold;">+${dayData.earned}</span>` : ''}
-                    ${dayData.used > 0 ? `<span style="color:#D32F2F; font-weight:bold;">-${dayData.used}</span>` : ''}
-                </div>
-                <div style="font-weight:bold; font-size:10px;">${dayData.overtime > 0 ? dayData.overtime+'h' : ''}</div>
-            `;
-
-            cell.onclick = () => {
-                if(selectedDay === d) {
-                    openMemoModal(dayData.memo || '');
-                } else {
-                    selectedDay = d;
-                    renderCalendar();
-                }
-            };
-
+            const cell = createCellElement(currentYear, currentMonth, d, false);
             grid.appendChild(cell);
         }
 
-        // 3. 다음 달 빈 칸 연산 (그리드가 채워지도록 흐리게 표시)
+        // 3. 다음 달 빈 칸 및 내용 처리 (투명도 적용)
         const totalRendered = firstDay + totalDays;
         const nextDaysCount = (7 - (totalRendered % 7)) % 7;
         for(let n=1; n<=nextDaysCount; n++) {
-            const cell = document.createElement('div');
-            cell.className = 'day-cell other-month';
-            cell.innerHTML = `<div style="color:gray;">${n}</div>`;
+            const cell = createCellElement(nextYear, nextMonth, n, true);
             grid.appendChild(cell);
         }
 
