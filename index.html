@@ -202,6 +202,7 @@
     let selectedDay = new Date().getDate();
 
     let userMonthData = {};
+    let allMonthsData = {}; // 연월별 데이터 캐시 저장소 (ex: "2026_8")
 
     auth.onAuthStateChanged(user => {
         if (user) {
@@ -242,33 +243,58 @@
         }
     }
 
-    function getDocRef() {
-        const monthKey = `${currentYear}_${currentMonth}`;
+    function getDefaultMonthData() {
+        return {
+            baseTicketCount: 9,
+            shift1to10: "모닝 🌅",
+            shift11to20: "상근 💼",
+            shift21to30: "데이 ⏰",
+            shift31: "야간 🌙",
+            days: {}
+        };
+    }
+
+    function getDocRef(y = currentYear, m = currentMonth) {
+        const monthKey = `${y}_${m}`;
         return db.collection('users').doc(currentUser.uid).collection('months').doc(monthKey);
     }
 
     function loadData() {
-        getDocRef().get().then(doc => {
-            if(doc.exists) {
-                userMonthData = doc.data();
-            } else {
-                userMonthData = {
-                    baseTicketCount: 9,
-                    shift1to10: "모닝 🌅",
-                    shift11to20: "상근 💼",
-                    shift21to30: "데이 ⏰",
-                    shift31: "야간 🌙",
-                    days: {}
-                };
-            }
-            autoApplyMorningTickets();
+        let prevYear = currentYear, prevMonth = currentMonth - 1;
+        if (prevMonth < 0) { prevMonth = 11; prevYear--; }
+
+        let nextYear = currentYear, nextMonth = currentMonth + 1;
+        if (nextMonth > 11) { nextMonth = 0; nextYear++; }
+
+        const currentKey = `${currentYear}_${currentMonth}`;
+        const prevKey = `${prevYear}_${prevMonth}`;
+        const nextKey = `${nextYear}_${nextMonth}`;
+
+        // 전월, 현재 월, 다음 월 3개월 데이터를 동시에 조회
+        Promise.all([
+            getDocRef(prevYear, prevMonth).get(),
+            getDocRef(currentYear, currentMonth).get(),
+            getDocRef(nextYear, nextMonth).get()
+        ]).then(([prevDoc, currentDoc, nextDoc]) => {
+            allMonthsData[prevKey] = prevDoc.exists ? prevDoc.data() : getDefaultMonthData();
+            allMonthsData[currentKey] = currentDoc.exists ? currentDoc.data() : getDefaultMonthData();
+            allMonthsData[nextKey] = nextDoc.exists ? nextDoc.data() : getDefaultMonthData();
+
+            userMonthData = allMonthsData[currentKey];
+
+            autoApplyMorningTicketsForMonth(prevYear, prevMonth);
+            autoApplyMorningTicketsForMonth(currentYear, currentMonth);
+            autoApplyMorningTicketsForMonth(nextYear, nextMonth);
+
             renderCalendar();
             renderSettings();
         });
     }
 
     function saveData() {
-        getDocRef().set(userMonthData, { merge: true }).then(() => {
+        const currentKey = `${currentYear}_${currentMonth}`;
+        allMonthsData[currentKey] = userMonthData;
+        getDocRef(currentYear, currentMonth).set(userMonthData, { merge: true }).then(() => {
             renderCalendar();
         });
     }
@@ -282,25 +308,31 @@
         return '#FFFFFF';
     }
 
-    function getShiftForDay(d) {
-        if(d <= 10) return userMonthData.shift1to10;
-        if(d <= 20) return userMonthData.shift11to20;
-        if(d <= 30) return userMonthData.shift21to30;
-        return userMonthData.shift31;
+    function getShiftForDay(d, mData) {
+        const data = mData || userMonthData;
+        if(!data) return "상근 💼";
+        if(d <= 10) return data.shift1to10;
+        if(d <= 20) return data.shift11to20;
+        if(d <= 30) return data.shift21to30;
+        return data.shift31;
     }
 
-    function autoApplyMorningTickets() {
-        if(!userMonthData.days) userMonthData.days = {};
-        const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
-        for(let d=1; d<=totalDays; d++) {
-            let shift = getShiftForDay(d);
-            const isMorning = shift && shift.includes("모닝");
-            const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    function autoApplyMorningTicketsForMonth(y, m) {
+        const monthKey = `${y}_${m}`;
+        const mData = allMonthsData[monthKey];
+        if(!mData) return;
+        if(!mData.days) mData.days = {};
 
-            if(!userMonthData.days[dateKey]) {
-                userMonthData.days[dateKey] = { earned: isMorning ? 1 : 0, used: 0, status: '근무', overtime: 0, memo: '' };
+        const totalDays = new Date(y, m + 1, 0).getDate();
+        for(let d=1; d<=totalDays; d++) {
+            let shift = getShiftForDay(d, mData);
+            const isMorning = shift && shift.includes("모닝");
+            const dateKey = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+            if(!mData.days[dateKey]) {
+                mData.days[dateKey] = { earned: isMorning ? 1 : 0, used: 0, status: '근무', overtime: 0, memo: '' };
             } else {
-                const day = userMonthData.days[dateKey];
+                const day = mData.days[dateKey];
                 const isNonWork = ['휴무', '연차', '검진'].includes(day.status);
                 
                 if (isNonWork) {
@@ -315,10 +347,12 @@
     }
 
     function createCellElement(y, m, d, isOtherMonth) {
+        const monthKey = `${y}_${m}`;
+        const targetMonthData = allMonthsData[monthKey] || getDefaultMonthData();
         const dateKey = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         
-        let dayData = (userMonthData.days && userMonthData.days[dateKey]);
-        let shift = getShiftForDay(d);
+        let dayData = (targetMonthData.days && targetMonthData.days[dateKey]);
+        let shift = getShiftForDay(d, targetMonthData);
 
         if (!dayData) {
             const isMorning = shift && shift.includes("모닝");
@@ -395,14 +429,14 @@
         const today = new Date();
         const isCurrentMonth = (today.getFullYear() === currentYear && today.getMonth() === currentMonth);
 
-        // 1. 지난달 빈 칸 및 내용 처리 (투명도 적용)
+        // 1. 지난달 날짜 및 데이터 출력 (해당 월의 데이터 및 근무 패턴 적용)
         for(let i=0; i<firstDay; i++) {
             const pDay = prevMonthTotalDays - (firstDay - 1 - i);
             const cell = createCellElement(prevYear, prevMonth, pDay, true);
             grid.appendChild(cell);
         }
 
-        // 2. 이번 달 날짜 그리기
+        // 2. 이번 달 날짜 및 데이터 출력
         for(let d=1; d<=totalDays; d++) {
             const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             const dayData = (userMonthData.days && userMonthData.days[dateKey]) || { earned:0, used:0, status:'근무', overtime:0, memo:'' };
@@ -420,7 +454,7 @@
             grid.appendChild(cell);
         }
 
-        // 3. 다음 달 빈 칸 및 내용 처리 (투명도 적용)
+        // 3. 다음 달 날짜 및 데이터 출력 (해당 월의 데이터 및 근무 패턴 적용)
         const totalRendered = firstDay + totalDays;
         const nextDaysCount = (7 - (totalRendered % 7)) % 7;
         for(let n=1; n<=nextDaysCount; n++) {
@@ -523,7 +557,7 @@
         const { data, dayNum } = getSelectedDayData();
         data.status = status;
         
-        const shift = getShiftForDay(dayNum);
+        const shift = getShiftForDay(dayNum, userMonthData);
         const isMorning = shift && shift.includes("모닝");
 
         if (['휴무', '연차', '검진'].includes(status)) {
@@ -543,7 +577,7 @@
         const nextStatus = data.status === '휴무' ? '검진' : '휴무';
         data.status = nextStatus;
 
-        const shift = getShiftForDay(dayNum);
+        const shift = getShiftForDay(dayNum, userMonthData);
         if (shift && shift.includes("모닝") && data.earned === 1 && !data.manualEarned) {
             data.earned = 0;
         }
@@ -558,7 +592,7 @@
         data.status = next;
         if(next === '휴근') data.overtime = (data.overtime || 0) + 8.0;
 
-        const shift = getShiftForDay(dayNum);
+        const shift = getShiftForDay(dayNum, userMonthData);
         if (shift && shift.includes("모닝") && data.earned === 0 && !data.resetByUser) {
             data.earned = 1;
         }
@@ -630,7 +664,7 @@
 
     function updateShiftPattern(key, val) {
         userMonthData[key] = val;
-        autoApplyMorningTickets();
+        autoApplyMorningTicketsForMonth(currentYear, currentMonth);
         saveData();
         renderSettings();
     }
