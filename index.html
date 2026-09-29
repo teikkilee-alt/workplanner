@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>근무수첩</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 0; }
+        body { background-color: #f4f6f8; display: flex; justify-content: center; min-height: 100vh; }
+        #app-container { width: 100%; max-width: 480px; background: #ffffff; min-height: 100vh; display: flex; flex-direction: column; position: relative; }
+        
+        /* Auth Screen */
+        .auth-card { padding: 24px; text-align: center; margin-top: 60px; }
+        .auth-card h2 { margin-bottom: 20px; font-size: 24px; color: #1976D2; }
+        .auth-card input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
+        .auth-card button { width: 100%; padding: 12px; margin-top: 12px; border: none; border-radius: 8px; background: #1976D2; color: white; font-size: 16px; font-weight: bold; cursor: pointer; }
+        .auth-card .sub-btn { background: #666; margin-top: 6px; }
+
+        /* Navigation */
+        nav { display: flex; justify-content: space-around; background: #fff; border-top: 1px solid #eee; position: fixed; bottom: 0; width: 100%; max-width: 480px; height: 56px; align-items: center; z-index: 100; }
+        nav div { text-align: center; font-size: 12px; cursor: pointer; color: #777; flex: 1; padding: 8px 0; }
+        nav div.active { color: #1976D2; font-weight: bold; }
+
+        /* Main Content */
+        .page { display: none; padding: 12px; padding-bottom: 70px; }
+        .page.active { display: block; }
+
+        /* Summary Header */
+        .summary-card { background: #E3F2FD; border: 1px solid #90CAF9; border-radius: 12px; padding: 12px; display: flex; justify-content: space-around; text-align: center; margin-bottom: 12px; }
+        .summary-box { flex: 1; }
+        .summary-title { font-size: 12px; color: #666; font-weight: bold; }
+        .summary-value { font-size: 14px; color: #1976D2; font-weight: bold; margin: 2px 0; }
+        .summary-sub { font-size: 11px; color: #424242; font-weight: bold; }
+
+        /* Header Controls */
+        .month-picker { display: flex; justify-content: center; align-items: center; gap: 16px; margin-bottom: 12px; }
+        .month-picker button { background: none; border: none; font-size: 18px; cursor: pointer; font-weight: bold; color: #666; }
+        .month-picker h3 { font-size: 20px; font-weight: bold; }
+
+        /* Calendar Grid */
+        .calendar-header { display: grid; grid-template-columns: repeat(7, 1f); text-align: center; font-weight: bold; font-size: 13px; margin-bottom: 6px; }
+        .calendar-header div:nth-child(1) { color: red; }
+        .calendar-header div:nth-child(7) { color: blue; }
+
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1f); gap: 2px; }
+        .day-cell { height: 76px; border-radius: 6px; border: 1px solid #E0E0E0; padding: 2px; display: flex; flex-direction: column; justify-content: space-around; align-items: center; cursor: pointer; font-size: 11px; position: relative; }
+        .day-cell.selected { border: 2.5px solid #E65100; }
+        .day-cell.other-month { opacity: 0.35; }
+
+        /* Day Details Section */
+        .detail-card { background: #F5F5F5; border-radius: 16px; padding: 14px; margin-top: 12px; }
+        .action-row { display: flex; gap: 6px; margin: 10px 0; }
+        .action-btn { flex: 1; padding: 8px 0; border-radius: 20px; border: 1.5px solid #1976D2; background: white; font-weight: bold; cursor: pointer; font-size: 12px; text-align: center; }
+        .action-btn.red { border-color: #D32F2F; }
+        
+        .status-row { display: flex; gap: 8px; margin-top: 8px; }
+        .status-btn { flex: 1; padding: 8px 0; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; color: white; }
+
+        /* Modal Memo */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 200; }
+        .modal-content { background: white; padding: 20px; border-radius: 12px; width: 85%; max-width: 360px; }
+        .modal-content input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; }
+        .modal-btns { display: flex; justify-content: flex-end; gap: 10px; }
+
+        /* Settings */
+        .setting-card { background: #FAFAFA; border: 1px solid #E0E0E0; border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+        .setting-card h4 { margin-bottom: 8px; }
+        .shift-select-row { margin-bottom: 10px; }
+        .shift-options { display: flex; gap: 4px; margin-top: 4px; }
+        .shift-opt { flex: 1; text-align: center; padding: 6px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 11px; cursor: pointer; }
+        .shift-opt.selected { border: 2px solid #1E88E5; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <!-- 로그인 화면 -->
+    <div id="auth-screen" class="auth-card">
+        <h2>📱 근무수첩 로그인</h2>
+        <input type="email" id="auth-email" placeholder="이메일 아이디">
+        <input type="password" id="auth-password" placeholder="비밀번호">
+        <button onclick="login()">로그인</button>
+        <button class="sub-btn" onclick="signup()">회원가입</button>
+    </div>
+
+    <!-- 메인 앱 화면 -->
+    <div id="main-screen" style="display: none;">
+        <!-- 달력 탭 -->
+        <div id="calendar-page" class="page active">
+            <div class="summary-card">
+                <div class="summary-box">
+                    <div class="summary-title">🎫 남은 식권 수</div>
+                    <div class="summary-value" id="summary-tickets">0 개</div>
+                    <div class="summary-sub" id="summary-off">총 휴무 일수 : 0일</div>
+                </div>
+                <div style="width: 1px; background: #BDBDBD;"></div>
+                <div class="summary-box">
+                    <div class="summary-title">⏱️ 총 연장 근무 시간</div>
+                    <div class="summary-value" id="summary-overtime" style="color: #E65100;">0 h</div>
+                </div>
+            </div>
+
+            <div class="month-picker">
+                <button onclick="changeMonth(-1)">◀</button>
+                <h3 id="current-month-text">2026년 9월</h3>
+                <button onclick="changeMonth(1)">▶</button>
+            </div>
+
+            <div class="calendar-header">
+                <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+            </div>
+            <div class="calendar-grid" id="calendar-grid"></div>
+
+            <div class="detail-card">
+                <h4 id="selected-date-text">📝 1일 선택됨</h4>
+                <div class="action-row">
+                    <button class="action-btn" onclick="addTicket(1)">식권+1</button>
+                    <button class="action-btn red" onclick="addTicket(-1)">식권-1</button>
+                    <button class="action-btn" onclick="addOvertime(0.5)">연장<br>+0.5</button>
+                    <button class="action-btn red" onclick="addOvertime(-0.5)">연장<br>-0.5</button>
+                </div>
+
+                <div style="background: white; padding: 10px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 8px; font-size: 13px;">
+                    <div id="detail-overtime">⏱️ 연장근무: 0시간</div>
+                    <div id="detail-status">📌 근무 상태: 근무</div>
+                    <div id="detail-memo" style="color: #2E7D32;"></div>
+                    <div id="detail-ticket">🎫 식권: 내역 없음</div>
+                </div>
+
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 4px;">• 근무 상태 변경:</div>
+                <div class="status-row">
+                    <button id="btn-status-off" class="status-btn" style="background: #999;" onclick="toggleOffStatus()">휴무</button>
+                    <button id="btn-status-annual" class="status-btn" style="background: #FFF59D; color: black;" onclick="setStatus('연차')">연차</button>
+                    <button id="btn-status-work" class="status-btn" style="background: #1E88E5;" onclick="cycleWorkStatus()">근무</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 설정 탭 -->
+        <div id="settings-page" class="page">
+            <h2 style="margin-bottom: 16px;">⚙️ 설정</h2>
+            <div class="setting-card">
+                <h4 id="setting-ticket-label">🎫 기본 식권 수량 설정</h4>
+                <div style="display: flex; gap: 8px;">
+                    <input type="number" id="base-ticket-input" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 6px;">
+                    <button onclick="saveBaseTickets()" style="padding: 8px 16px; background: #1E88E5; color: white; border: none; border-radius: 6px;">저장</button>
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <h4>📅 근무 패턴 설정</h4>
+                <div id="shift-settings-container"></div>
+            </div>
+
+            <button onclick="logout()" style="width: 100%; padding: 12px; background: #D32F2F; color: white; border: none; border-radius: 8px; margin-top: 20px;">로그아웃</button>
+        </div>
+
+        <nav>
+            <div id="nav-cal" class="active" onclick="switchTab('cal')">📅<br>달력</div>
+            <div id="nav-set" onclick="switchTab('set')">⚙️<br>설정</div>
+        </nav>
+    </div>
+</div>
+
+<!-- 메모 작성 모달 -->
+<div id="memo-modal" class="modal">
+    <div class="modal-content">
+        <h3>📝 메모 작성</h3>
+        <input type="text" id="memo-input" maxlength="30" placeholder="메모 입력 (30자 이내)">
+        <div class="modal-btns">
+            <button onclick="deleteMemo()" style="background: none; border: none; color: red; cursor: pointer;">삭제</button>
+            <button onclick="closeMemoModal()" style="background: none; border: none; color: #666; cursor: pointer;">취소</button>
+            <button onclick="saveMemo()" style="background: none; border: none; color: #1976D2; font-weight: bold; cursor: pointer;">저장</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ⚠️ Firebase 연동 설정 (Firebase 콘솔에서 복사한 본인의 키로 대체하세요)
+    const firebaseConfig = {
+  apiKey: "AIzaSyDnwYQ6WT9TVD-y5hbDWU7LkuafgIrivfQ",
+  authDomain: "my-work-planner-4542.firebaseapp.com",
+  projectId: "my-work-planner-4542",
+  storageBucket: "my-work-planner-4542.firebasestorage.app",
+  messagingSenderId: "204177923365",
+  appId: "1:204177923365:web:9e904efcdaefeac46acecc"
+};
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let currentUser = null;
+    let currentYear = new Date().getFullYear();
+    let currentMonth = new Date().getMonth(); // 0-indexed
+    let selectedDay = new Date().getDate();
+
+    let userMonthData = {}; // Firestore에서 로드된 유저 정보
+
+    // Auth Listeners
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            currentUser = user;
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('main-screen').style.display = 'block';
+            loadData();
+        } else {
+            currentUser = null;
+            document.getElementById('auth-screen').style.display = 'block';
+            document.getElementById('main-screen').style.display = 'none';
+        }
+    });
+
+    function login() {
+        const email = document.getElementById('auth-email').value;
+        const pass = document.getElementById('auth-password').value;
+        auth.signInWithEmailAndPassword(email, pass).catch(e => alert(e.message));
+    }
+
+    function signup() {
+        const email = document.getElementById('auth-email').value;
+        const pass = document.getElementById('auth-password').value;
+        auth.createUserWithEmailAndPassword(email, pass).then(() => alert("회원가입 완료!")).catch(e => alert(e.message));
+    }
+
+    function logout() { auth.signOut(); }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('nav div').forEach(n => n.classList.remove('active'));
+        if(tab === 'cal') {
+            document.getElementById('calendar-page').classList.add('active');
+            document.getElementById('nav-cal').classList.add('active');
+        } else {
+            document.getElementById('settings-page').classList.add('active');
+            document.getElementById('nav-set').classList.add('active');
+        }
+    }
+
+    // 데이터 로드/저장 (Firestore)
+    function getDocRef() {
+        const monthKey = `${currentYear}_${currentMonth + 1}`;
+        return db.collection('users').doc(currentUser.uid).collection('months').doc(monthKey);
+    }
+
+    function loadData() {
+        getDocRef().get().then(doc => {
+            if(doc.exists) {
+                userMonthData = doc.data();
+            } else {
+                userMonthData = {
+                    baseTicketCount: 9,
+                    shift1to10: "모닝 🌅",
+                    shift11to20: "상근 💼",
+                    shift21to30: "데이 ⏰",
+                    shift31: "야간 🌙",
+                    days: {}
+                };
+            }
+            renderCalendar();
+            renderSettings();
+        });
+    }
+
+    function saveData() {
+        getDocRef().set(userMonthData, { merge: true }).then(() => {
+            renderCalendar();
+        });
+    }
+
+    // 근무 색상 추출
+    function getShiftColor(shift) {
+        if(!shift) return '#FFFFFF';
+        if(shift.includes("모닝")) return '#FFCC99';
+        if(shift.includes("상근")) return '#FFFFFF';
+        if(shift.includes("데이")) return '#B3E5FC';
+        if(shift.includes("야간")) return '#E1BEE7';
+        return '#FFFFFF';
+    }
+
+    function renderCalendar() {
+        document.getElementById('current-month-text').innerText = `${currentYear}년 ${currentMonth + 1}월`;
+        const grid = document.getElementById('calendar-grid');
+        grid.innerHTML = '';
+
+        const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+        const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+        let totalEarned = 0, totalUsed = 0, totalOvertime = 0, offDays = 0;
+
+        // 빈 칸 처리
+        for(let i=0; i<firstDay; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'day-cell other-month';
+            grid.appendChild(cell);
+        }
+
+        for(let d=1; d<=totalDays; d++) {
+            const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const dayData = (userMonthData.days && userMonthData.days[dateKey]) || { earned:0, used:0, status:'근무', overtime:0, memo:'' };
+
+            totalEarned += dayData.earned || 0;
+            totalUsed += dayData.used || 0;
+            totalOvertime += dayData.overtime || 0;
+            if(dayData.status === '휴무') offDays++;
+
+            // Shift 패턴 계산
+            let shift = userMonthData.shift1to10;
+            if(d > 10 && d <= 20) shift = userMonthData.shift11to20;
+            else if(d > 20 && d <= 30) shift = userMonthData.shift21to30;
+            else if(d === 31) shift = userMonthData.shift31;
+
+            const cell = document.createElement('div');
+            cell.className = `day-cell ${d === selectedDay ? 'selected' : ''}`;
+            
+            // 배경색 설정
+            if(dayData.status === '휴무') cell.style.background = '#E0E0E0';
+            else if(dayData.status === '검진') cell.style.background = '#C8E6C9';
+            else if(dayData.status === '연차') cell.style.background = '#FFF176';
+            else cell.style.background = getShiftColor(shift);
+
+            let statusText = ['남','북','휴근','검진'].includes(dayData.status) ? ` (${dayData.status})` : '';
+            let memoIcon = dayData.memo ? ' ✔' : '';
+
+            cell.innerHTML = `
+                <div style="font-weight:bold;">${d}${statusText}${memoIcon}</div>
+                <div style="font-size:9px;">
+                    ${dayData.earned > 0 ? `<span style="color:#1976D2;">+${dayData.earned}</span>` : ''}
+                    ${dayData.used > 0 ? `<span style="color:#D32F2F;">-${dayData.used}</span>` : ''}
+                </div>
+                <div style="font-weight:bold;">${dayData.overtime > 0 ? dayData.overtime+'h' : ''}</div>
+            `;
+
+            cell.onclick = () => {
+                if(selectedDay === d) {
+                    openMemoModal(dayData.memo || '');
+                } else {
+                    selectedDay = d;
+                    renderCalendar();
+                }
+            };
+
+            grid.appendChild(cell);
+        }
+
+        // 요약 업데이트
+        const baseTickets = userMonthData.baseTicketCount || 9;
+        const finalTickets = baseTickets + totalEarned - totalUsed;
+        document.getElementById('summary-tickets').innerText = `${finalTickets} 개 (+${totalEarned} / -${totalUsed})`;
+        document.getElementById('summary-off').innerText = `총 휴무 일수 : ${offDays}일`;
+        document.getElementById('summary-overtime').innerText = `${totalOvertime} h`;
+
+        renderDetail();
+    }
+
+    function renderDetail() {
+        const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
+        const dayData = (userMonthData.days && userMonthData.days[dateKey]) || { earned:0, used:0, status:'근무', overtime:0, memo:'' };
+
+        document.getElementById('selected-date-text').innerText = `📝 ${currentMonth + 1}월 ${selectedDay}일 선택됨`;
+        document.getElementById('detail-overtime').innerText = `⏱️ 연장근무: ${dayData.overtime || 0}시간`;
+        document.getElementById('detail-status').innerText = `📌 근무 상태: ${dayData.status || '근무'}`;
+        document.getElementById('detail-memo').innerText = dayData.memo ? `📝 메모: ${dayData.memo}` : '';
+        document.getElementById('detail-ticket').innerText = `🎫 식권: 획득 ${dayData.earned||0}개 / 사용 ${dayData.used||0}개`;
+        
+        const offBtn = document.getElementById('btn-status-off');
+        offBtn.innerText = dayData.status === '검진' ? '검진' : '휴무';
+        offBtn.style.background = dayData.status === '검진' ? '#388E3C' : (dayData.status === '휴무' ? '#757575' : '#999');
+    }
+
+    function getSelectedDayData() {
+        if(!userMonthData.days) userMonthData.days = {};
+        const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
+        if(!userMonthData.days[dateKey]) {
+            userMonthData.days[dateKey] = { earned:0, used:0, status:'근무', overtime:0, memo:'' };
+        }
+        return { data: userMonthData.days[dateKey], key: dateKey };
+    }
+
+    function addTicket(val) {
+        const { data } = getSelectedDayData();
+        if(val > 0) data.earned = (data.earned || 0) + val;
+        else data.used = Math.max(0, (data.used || 0) - val);
+        saveData();
+    }
+
+    function addOvertime(val) {
+        const { data } = getSelectedDayData();
+        data.overtime = Math.max(0, (data.overtime || 0) + val);
+        saveData();
+    }
+
+    function setStatus(status) {
+        const { data } = getSelectedDayData();
+        data.status = status;
+        saveData();
+    }
+
+    function toggleOffStatus() {
+        const { data } = getSelectedDayData();
+        data.status = data.status === '휴무' ? '검진' : (data.status === '검진' ? '휴무' : '휴무');
+        saveData();
+    }
+
+    function cycleWorkStatus() {
+        const { data } = getSelectedDayData();
+        const cycle = ['근무', '남', '북', '휴근'];
+        let idx = cycle.indexOf(data.status);
+        let next = cycle[(idx + 1) % cycle.length];
+        data.status = next;
+        if(next === '휴근') data.overtime = (data.overtime || 0) + 8.0;
+        saveData();
+    }
+
+    function changeMonth(delta) {
+        currentMonth += delta;
+        if(currentMonth < 0) { currentMonth = 11; currentYear--; }
+        if(currentMonth > 11) { currentMonth = 0; currentYear++; }
+        selectedDay = 1;
+        loadData();
+    }
+
+    /* 메모 기능 */
+    function openMemoModal(memo) {
+        document.getElementById('memo-input').value = memo;
+        document.getElementById('memo-modal').style.display = 'flex';
+    }
+    function closeMemoModal() { document.getElementById('memo-modal').style.display = 'none'; }
+    function saveMemo() {
+        const { data } = getSelectedDayData();
+        data.memo = document.getElementById('memo-input').value;
+        closeMemoModal();
+        saveData();
+    }
+    function deleteMemo() {
+        const { data } = getSelectedDayData();
+        data.memo = '';
+        closeMemoModal();
+        saveData();
+    }
+
+    /* 설정 */
+    function renderSettings() {
+        document.getElementById('setting-ticket-label').innerText = `🎫 ${currentYear}년 ${currentMonth + 1}월 기본 식권 수량`;
+        document.getElementById('base-ticket-input').value = userMonthData.baseTicketCount || 9;
+
+        const container = document.getElementById('shift-settings-container');
+        container.innerHTML = '';
+
+        const shifts = [
+            { key: 'shift1to10', label: '1일 ~ 10일' },
+            { key: 'shift11to20', label: '11일 ~ 20일' },
+            { key: 'shift21to30', label: '21일 ~ 30일' },
+            { key: 'shift31', label: '31일 (개별)' }
+        ];
+
+        shifts.forEach(s => {
+            const div = document.createElement('div');
+            div.className = 'shift-select-row';
+            div.innerHTML = `
+                <div style="font-size:13px; font-weight:bold; color:#666;">${s.label}</div>
+                <div class="shift-options">
+                    ${['모닝 🌅', '상근 💼', '데이 ⏰', '야간 🌙'].map(opt => `
+                        <div class="shift-opt ${userMonthData[s.key] === opt ? 'selected' : ''}" 
+                             onclick="updateShiftPattern('${s.key}', '${opt}')">${opt.split(' ')[0]}</div>
+                    `).join('')}
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function saveBaseTickets() {
+        userMonthData.baseTicketCount = parseInt(document.getElementById('base-ticket-input').value) || 0;
+        saveData();
+    }
+
+    function updateShiftPattern(key, val) {
+        userMonthData[key] = val;
+        saveData();
+        renderSettings();
+    }
+</script>
+</body>
+</html>
