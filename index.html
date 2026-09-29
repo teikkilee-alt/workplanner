@@ -47,7 +47,7 @@
         .calendar-header div:nth-child(7) { color: #1976D2; }
 
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-        .day-cell { height: 78px; border-radius: 6px; border: 0.5px solid #E0E0E0; padding: 2px 1px; display: flex; flex-direction: column; justify-content: space-evenly; align-items: center; cursor: pointer; font-size: 11px; position: relative; box-sizing: border-box; background: white; }
+        .day-cell { height: 78px; border-radius: 6px; border: 0.5px solid #E0E0E0; padding: 4px 2px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; cursor: pointer; font-size: 11px; position: relative; box-sizing: border-box; background: white; }
         .day-cell.selected { border: 2.5px solid #E65100 !important; }
         .day-cell.other-month { opacity: 0.35; }
 
@@ -202,7 +202,7 @@
     let selectedDay = new Date().getDate();
 
     let userMonthData = {};
-    let allMonthsData = {}; // 연월별 데이터 캐시 저장소 (ex: "2026_8")
+    let allMonthsData = {};
 
     auth.onAuthStateChanged(user => {
         if (user) {
@@ -270,7 +270,6 @@
         const prevKey = `${prevYear}_${prevMonth}`;
         const nextKey = `${nextYear}_${nextMonth}`;
 
-        // 전월, 현재 월, 다음 월 3개월 데이터를 동시에 조회
         Promise.all([
             getDocRef(prevYear, prevMonth).get(),
             getDocRef(currentYear, currentMonth).get(),
@@ -380,13 +379,20 @@
 
         let memoIcon = dayData.memo ? `<span style="color:#2E7D32; font-weight:bold;"> ✔</span>` : '';
 
+        // 수평 정렬을 위한 높이 보정 HTML
+        let earnedUsedHTML = '&nbsp;';
+        if (dayData.earned > 0 || dayData.used > 0) {
+            let earnedStr = dayData.earned > 0 ? `<span style="color:#1976D2; font-weight:bold;">+${dayData.earned}</span>` : '';
+            let usedStr = dayData.used > 0 ? `<span style="color:#D32F2F; font-weight:bold;">-${dayData.used}</span>` : '';
+            earnedUsedHTML = `${earnedStr} ${usedStr}`.trim();
+        }
+
+        let overtimeHTML = dayData.overtime > 0 ? `${dayData.overtime}h` : '&nbsp;';
+
         cell.innerHTML = `
-            <div style="color:${dateColor};">${d}${statusText}${memoIcon}</div>
-            <div style="font-size:9px; display:flex; gap:2px;">
-                ${dayData.earned > 0 ? `<span style="color:#1976D2; font-weight:bold;">+${dayData.earned}</span>` : ''}
-                ${dayData.used > 0 ? `<span style="color:#D32F2F; font-weight:bold;">-${dayData.used}</span>` : ''}
-            </div>
-            <div style="font-weight:bold; font-size:10px;">${dayData.overtime > 0 ? dayData.overtime + 'h' : ''}</div>
+            <div style="color:${dateColor}; line-height: 1.2;">${d}${statusText}${memoIcon}</div>
+            <div style="font-size:9px; display:flex; gap:2px; min-height:12px; align-items:center; justify-content:center;">${earnedUsedHTML}</div>
+            <div style="font-weight:bold; font-size:10px; min-height:13px; display:flex; align-items:center; justify-content:center;">${overtimeHTML}</div>
         `;
 
         cell.onclick = () => {
@@ -429,14 +435,12 @@
         const today = new Date();
         const isCurrentMonth = (today.getFullYear() === currentYear && today.getMonth() === currentMonth);
 
-        // 1. 지난달 날짜 및 데이터 출력 (해당 월의 데이터 및 근무 패턴 적용)
         for(let i=0; i<firstDay; i++) {
             const pDay = prevMonthTotalDays - (firstDay - 1 - i);
             const cell = createCellElement(prevYear, prevMonth, pDay, true);
             grid.appendChild(cell);
         }
 
-        // 2. 이번 달 날짜 및 데이터 출력
         for(let d=1; d<=totalDays; d++) {
             const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             const dayData = (userMonthData.days && userMonthData.days[dateKey]) || { earned:0, used:0, status:'근무', overtime:0, memo:'' };
@@ -454,7 +458,6 @@
             grid.appendChild(cell);
         }
 
-        // 3. 다음 달 날짜 및 데이터 출력 (해당 월의 데이터 및 근무 패턴 적용)
         const totalRendered = firstDay + totalDays;
         const nextDaysCount = (7 - (totalRendered % 7)) % 7;
         for(let n=1; n<=nextDaysCount; n++) {
@@ -462,7 +465,6 @@
             grid.appendChild(cell);
         }
 
-        // 요약 업데이트
         const baseTickets = userMonthData.baseTicketCount || 9;
         const finalTickets = baseTickets + totalEarned - totalUsed;
         
