@@ -872,7 +872,280 @@
     // ===================================================================
     // 💡 추가하고자 하시는 자바스크립트 코드/함수가 있다면 이 아래에 넣으시면 됩니다.
     // ===================================================================
+import React, { useState } from 'react';
 
+// 1. 공휴일 한국어 변환 매핑 (외국어 명칭 및 불필요 표기 정리)
+const HOLIDAY_MAP = {
+  '国庆节': '🇨🇳 국경절',
+  '국경절': '🇨🇳 국경절',
+  'スポーツの日': '🇯🇵 스포츠의 날',
+  '스포츠의 날': '🇯🇵 스포츠의 날',
+  '개천절': '🇰🇷 개천절',
+  '한글날': '🇰🇷 한글날',
+  '대체공휴일': '🇰🇷 대체공휴일',
+};
+
+// 2. 2026년 10월 날짜 데이터 샘플
+const INITIAL_DAYS_DATA = {
+  '2026-10-01': { holidays: ['국경절'], overtime: '2h', mealTickets: 3, status: '근무' },
+  '2026-10-02': { holidays: ['국경절'], overtime: '2h', mealTickets: 1, status: '근무' },
+  '2026-10-03': { holidays: ['개천절', '국경절'], overtime: '', mealTickets: 0, status: '휴무' },
+  '2026-10-04': { holidays: ['국경절'], overtime: '', mealTickets: 0, status: '휴무' },
+  '2026-10-05': { holidays: ['대체공휴일', '국경절', '추석연휴'], overtime: '2h', mealTickets: 1, status: '근무' },
+  '2026-10-06': { holidays: ['국경절'], overtime: '2h', mealTickets: 1, status: '근무' },
+  '2026-10-07': { holidays: ['국경절', '개천절'], overtime: '2h', mealTickets: 1, status: '근무' },
+  '2026-10-08': { holidays: ['국경절'], overtime: '2h', mealTickets: 1, status: '근무' },
+  '2026-10-09': { holidays: ['한글날'], overtime: '', mealTickets: 0, status: '휴무' },
+  '2026-10-12': { holidays: ['스포츠의 날'], overtime: '2h', mealTickets: 1, status: '근무' },
+};
+
+export default function CalendarApp() {
+  const [selectedDate, setSelectedDate] = useState('2026-10-07');
+  const [daysData, setDaysData] = useState(INITIAL_DAYS_DATA);
+  const [workStatus, setWorkStatus] = useState('근무');
+
+  // 셀 내부 공휴일 텍스트 처리: 2개 이상일 때 '첫공휴일 외 N개' 표기
+  const getFormattedHolidayBadge = (holidays) => {
+    if (!holidays || holidays.length === 0) return null;
+    const translatedList = holidays.map((h) => HOLIDAY_MAP[h] || h);
+
+    if (translatedList.length > 1) {
+      return `${translatedList[0]} 외 ${translatedList.length - 1}`;
+    }
+    return translatedList[0];
+  };
+
+  // 선택된 날짜 정보 및 공휴일 한국어 풀버전 리스트
+  const selectedDayInfo = daysData[selectedDate] || {};
+  const selectedHolidays = (selectedDayInfo.holidays || []).map((h) => HOLIDAY_MAP[h] || h);
+  const selectedDayNum = parseInt(selectedDate.split('-')[2], 10);
+  const selectedMonthNum = parseInt(selectedDate.split('-')[1], 10);
+
+  const handleDateClick = (dateStr) => {
+    setSelectedDate(dateStr);
+    if (daysData[dateStr]?.status) {
+      setWorkStatus(daysData[dateStr].status);
+    }
+  };
+
+  // 달력 그리드 렌더링 (셀 높이를 고정하여 레이아웃이 변하지 않음)
+  const renderCalendarCells = () => {
+    const cells = [];
+
+    // 9월 (이전달) 날짜 4일
+    const prevMonthDays = [
+      { day: 27, fullDate: '2026-09-27', holidays: [] },
+      { day: 28, fullDate: '2026-09-28', holidays: ['대체공휴일'], overtimeAdd: '2.5h' },
+      { day: 29, fullDate: '2026-09-29', holidays: [], overtimeAdd: '3h' },
+      { day: 30, fullDate: '2026-09-30', holidays: [], overtimeAdd: '2h' },
+    ];
+
+    prevMonthDays.forEach((item, idx) => {
+      cells.push(
+        <div key={`prev-${idx}`} className="h-[84px] bg-gray-50 border border-gray-100 p-1 flex flex-col justify-between text-gray-400 opacity-60">
+          <div className="flex justify-between items-center text-xs">
+            <span className={idx === 0 ? 'text-red-400' : ''}>{item.day}</span>
+            <span className="text-[10px]">{item.overtimeAdd}</span>
+          </div>
+          {item.holidays.length > 0 && (
+            <div className="text-[10px] truncate text-gray-400">
+              {getFormattedHolidayBadge(item.holidays)}
+            </div>
+          )}
+          <div className="h-3"></div>
+        </div>
+      );
+    });
+
+    // 10월 날짜 (1일 ~ 31일)
+    for (let d = 1; d <= 31; d++) {
+      const dayStr = d < 10 ? `0${d}` : `${d}`;
+      const fullDate = `2026-10-${dayStr}`;
+      const isSelected = selectedDate === fullDate;
+      const dayData = daysData[fullDate] || {};
+      const holidays = dayData.holidays || [];
+      const isSunday = (d + 4) % 7 === 1;
+      const isSaturday = (d + 4) % 7 === 0;
+
+      const hasWorkSchedule = [
+        '2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06', '2026-10-07',
+        '2026-10-08', '2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15',
+        '2026-10-16', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22',
+        '2026-10-26', '2026-10-27'
+      ].includes(fullDate);
+
+      cells.push(
+        <div
+          key={fullDate}
+          onClick={() => handleDateClick(fullDate)}
+          /* h-[84px] 고정 높이와 overflow-hidden으로 달력 틀 고정 */
+          className={`h-[84px] p-1 border flex flex-col justify-between cursor-pointer transition-all overflow-hidden ${
+            isSelected
+              ? 'border-2 border-orange-500 rounded-lg shadow-sm z-10 bg-white'
+              : hasWorkSchedule
+              ? 'bg-purple-100/60 border-purple-200'
+              : 'bg-white border-gray-100'
+          }`}
+        >
+          {/* 상단: 날짜 */}
+          <div className="flex justify-between items-center">
+            <span
+              className={`text-xs font-semibold ${
+                isSunday || holidays.length > 0
+                  ? 'text-red-500'
+                  : isSaturday
+                  ? 'text-blue-500'
+                  : 'text-gray-800'
+              }`}
+            >
+              {d}
+            </span>
+          </div>
+
+          {/* 중앙: 공휴일 표기 (항상 1줄 고정, 외 N개 형태) */}
+          <div className="my-auto">
+            {holidays.length > 0 && (
+              <div className="text-[10px] font-medium text-red-600 bg-red-50 px-1 py-0.5 rounded truncate">
+                {getFormattedHolidayBadge(holidays)}
+              </div>
+            )}
+          </div>
+
+          {/* 하단: 연장근무 시간 */}
+          <div className="text-right text-[10px] text-gray-600 font-medium h-3">
+            {dayData.overtime || ''}
+          </div>
+        </div>
+      );
+    }
+
+    return cells;
+  };
+
+  return (
+    <div className="max-w-md mx-auto bg-gray-50 min-h-screen flex flex-col justify-between text-gray-800 font-sans pb-16">
+      {/* 1. 상단 통계 바 */}
+      <div className="bg-sky-50/80 p-3 m-2 rounded-xl shadow-sm border border-sky-100 flex justify-between items-center text-xs">
+        <div className="flex-1 text-center border-r border-sky-200">
+          <div className="text-gray-500 text-[11px] font-medium">🎫 남은 식권 수</div>
+          <div className="text-blue-600 font-bold text-sm mt-0.5">
+            12 개 <span className="text-xs font-normal text-blue-500">(-3)</span>
+          </div>
+          <div className="text-[10px] text-gray-400 mt-0.5">총 휴무 일수: 10일</div>
+        </div>
+        <div className="flex-1 text-center">
+          <div className="text-gray-500 text-[11px] font-medium">⏰ 총 연장 근무 시간</div>
+          <div className="text-orange-600 font-bold text-sm mt-0.5">
+            26 h <span className="text-xs font-normal text-gray-500">(20일 남음)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. 달력 헤더 */}
+      <div className="flex items-center justify-center gap-6 my-2">
+        <button className="text-gray-400 hover:text-gray-600 text-sm">◀</button>
+        <h2 className="text-lg font-bold tracking-tight">2026년 10월</h2>
+        <button className="text-gray-400 hover:text-gray-600 text-sm">▶</button>
+      </div>
+
+      {/* 3. 고정 그리드 달력 */}
+      <div className="px-2">
+        <div className="grid grid-cols-7 text-center font-bold text-xs py-1.5 bg-white border-b border-gray-100">
+          <span className="text-red-500">일</span>
+          <span>월</span>
+          <span>화</span>
+          <span>수</span>
+          <span>목</span>
+          <span>금</span>
+          <span className="text-blue-500">토</span>
+        </div>
+
+        <div className="grid grid-cols-7 gap-0.5 bg-gray-100 p-0.5 rounded-b-md">
+          {renderCalendarCells()}
+        </div>
+      </div>
+
+      {/* 4. 하단 상세 정보 및 메모 영역 (요청 2, 3번 적용) */}
+      <div className="p-4 bg-white border-t border-gray-200 mt-3 shadow-lg">
+        {/* 선택된 날짜 메모 헤더 */}
+        <div className="pb-2 border-b border-gray-100">
+          <h3 className="text-base font-bold text-gray-900 flex items-center gap-1">
+            📝 {selectedMonthNum}월 {selectedDayNum}일 메모
+          </h3>
+        </div>
+
+        {/* 해당 날짜 공휴일 한국어 풀버전 목록 */}
+        <div className="py-2.5 px-3 my-2 bg-gray-50 rounded-lg border border-gray-100">
+          <div className="text-xs font-semibold text-gray-500 mb-1">공휴일 정보</div>
+          {selectedHolidays.length > 0 ? (
+            <div className="text-xs font-bold text-red-600 space-y-1">
+              {selectedHolidays.map((holiday, idx) => (
+                <div key={idx} className="flex items-center gap-1">
+                  <span>•</span>
+                  <span>{holiday}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs text-gray-400">등록된 공휴일이 없습니다.</div>
+          )}
+        </div>
+
+        {/* 식권 및 연장시간 수량 조작 버튼 */}
+        <div className="grid grid-cols-4 gap-2 my-3">
+          <button className="py-2 text-xs font-bold text-blue-600 border border-blue-400 rounded-full hover:bg-blue-50">
+            식권+1
+          </button>
+          <button className="py-2 text-xs font-bold text-red-600 border border-red-400 rounded-full hover:bg-red-50">
+            식권-1
+          </button>
+          <button className="py-2 text-xs font-bold text-blue-600 border border-blue-400 rounded-full hover:bg-blue-50">
+            연장 +0.5
+          </button>
+          <button className="py-2 text-xs font-bold text-red-600 border border-red-400 rounded-full hover:bg-red-50">
+            연장 -0.5
+          </button>
+        </div>
+
+        {/* 선택 날짜 상세 상태 요약 */}
+        <div className="text-xs space-y-1 text-gray-700 bg-orange-50/50 p-2.5 rounded-lg mb-3">
+          <div>⏰ <b>연장근무:</b> {selectedDayInfo.overtime || '0시간'}</div>
+          <div>📌 <b>근무 상태:</b> {workStatus}</div>
+          <div>🎫 <b>식권:</b> {selectedDayInfo.mealTickets || 0}개 사용</div>
+        </div>
+
+        {/* 근무 상태 변경 버튼 그룹 */}
+        <div className="grid grid-cols-3 gap-1 bg-gray-100 p-1 rounded-lg">
+          {['휴무', '연차', '근무'].map((status) => (
+            <button
+              key={status}
+              onClick={() => setWorkStatus(status)}
+              className={`py-2 text-xs font-bold rounded-md transition-all ${
+                workStatus === status
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 5. 하단 탭 바 */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 flex justify-around py-2 z-20">
+        <div className="flex flex-col items-center text-xs text-blue-600 font-bold cursor-pointer">
+          <span>📅</span>
+          <span>달력</span>
+        </div>
+        <div className="flex flex-col items-center text-xs text-gray-400 cursor-pointer">
+          <span>⚙️</span>
+          <span>설정</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 </script>
 </body>
 </html>
