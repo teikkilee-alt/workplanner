@@ -159,7 +159,13 @@
                 <div id="shift-settings-container"></div>
             </div>
 
-            <button onclick="logout()" style="width: 100%; padding: 12px; background: #D32F2F; color: white; border: none; border-radius: 8px; margin-top: 20px; font-weight: bold;">로그아웃</button>
+            <!-- 로그인 계정 정보 표시 카드 -->
+            <div class="setting-card" style="text-align: center; background: #F5F5F5;">
+                <div style="font-size: 12px; color: #666; font-weight: bold; margin-bottom: 4px;">👤 현재 로그인 계정</div>
+                <div id="user-email-display" style="font-size: 14px; font-weight: bold; color: #1976D2;"></div>
+            </div>
+
+            <button onclick="logout()" style="width: 100%; padding: 12px; background: #D32F2F; color: white; border: none; border-radius: 8px; margin-top: 10px; font-weight: bold;">로그아웃</button>
         </div>
 
         <nav>
@@ -240,6 +246,7 @@
         } else {
             document.getElementById('settings-page').classList.add('active');
             document.getElementById('nav-set').classList.add('active');
+            renderSettings();
         }
     }
 
@@ -332,14 +339,22 @@
                 mData.days[dateKey] = { earned: isMorning ? 1 : 0, used: 0, status: '근무', overtime: 0, memo: '' };
             } else {
                 const day = mData.days[dateKey];
-                const isNonWork = ['휴무', '연차', '검진'].includes(day.status);
                 
-                if (isNonWork) {
-                    if (day.earned === 1 && isMorning && !day.manualEarned) {
+                if (!isMorning) {
+                    // 근무 패턴이 모닝이 아니게 변경된 경우, 수동 추가(manualEarned)가 아니었다면 자동 +1 지급분을 0으로 초기화
+                    if (day.earned === 1 && !day.manualEarned) {
                         day.earned = 0;
                     }
-                } else if (isMorning && day.earned === 0 && !day.resetByUser && !day.manualEarned) {
-                    day.earned = 1;
+                } else {
+                    // 근무 패턴이 모닝인 경우
+                    const isNonWork = ['휴무', '연차', '검진'].includes(day.status);
+                    if (isNonWork) {
+                        if (day.earned === 1 && !day.manualEarned) {
+                            day.earned = 0;
+                        }
+                    } else if (day.earned === 0 && !day.resetByUser && !day.manualEarned) {
+                        day.earned = 1;
+                    }
                 }
             }
         }
@@ -557,7 +572,6 @@
     function setStatus(status) {
         const { data, dayNum } = getSelectedDayData();
         
-        // 이전 상태가 '휴근'이었던 경우 8시간 차감
         if (data.status === '휴근' && status !== '휴근') {
             data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
         }
@@ -582,7 +596,6 @@
     function toggleOffStatus() {
         const { data, dayNum } = getSelectedDayData();
         
-        // 이전 상태가 '휴근'이었던 경우 8시간 차감
         if (data.status === '휴근') {
             data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
         }
@@ -602,7 +615,6 @@
         const cycle = ['근무', '남', '북', '휴근'];
         let idx = cycle.indexOf(data.status);
 
-        // 이전 상태가 '휴근'이었으면 8시간 차감
         if (data.status === '휴근') {
             data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
         }
@@ -610,7 +622,6 @@
         let next = cycle[(idx + 1) % cycle.length];
         data.status = next;
 
-        // 새 상태가 '휴근'이면 8시간 추가
         if (next === '휴근') {
             data.overtime = (data.overtime || 0) + 8.0;
         }
@@ -652,6 +663,11 @@
     function renderSettings() {
         document.getElementById('setting-ticket-label').innerText = `🎫 ${currentYear}년 ${currentMonth + 1}월 기본 식권 수량`;
         document.getElementById('base-ticket-input').value = userMonthData.baseTicketCount || 9;
+
+        // 현재 로그인 계정 이메일 표시
+        if (currentUser) {
+            document.getElementById('user-email-display').innerText = currentUser.email || '이메일 정보 없음';
+        }
 
         const container = document.getElementById('shift-settings-container');
         container.innerHTML = '';
