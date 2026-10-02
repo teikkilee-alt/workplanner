@@ -82,7 +82,7 @@
     <div id="auth-screen" class="auth-card">
         <h2>📱 근무수첩 로그인</h2>
         <input type="email" id="auth-email" placeholder="이메일 아이디">
-        <input type="password" id="auth-password" placeholder="비밀번호">
+        <input type="password" id="auth-password" placeholder="비밀번호 (6자리 이상)">
         <button onclick="login()">로그인</button>
         <button class="sub-btn" onclick="signup()">회원가입</button>
     </div>
@@ -223,16 +223,54 @@
         }
     });
 
+    // Firebase Auth 에러 코드를 친절한 한글 문구로 변환하는 함수
+    function getAuthErrorMessage(error) {
+        switch (error.code) {
+            case 'auth/weak-password':
+                return '비밀번호는 최소 6자리 이상이어야 합니다.';
+            case 'auth/email-already-in-use':
+                return '이미 가입되어 있는 이메일 주소입니다.';
+            case 'auth/invalid-email':
+                return '올바른 이메일 형식이 아닙니다.';
+            case 'auth/user-not-found':
+            case 'auth/wrong-password':
+            case 'auth/invalid-credential':
+                return '이메일 또는 비밀번호가 올바르지 않습니다.';
+            case 'auth/missing-password':
+                return '비밀번호를 입력해 주세요.';
+            case 'auth/too-many-requests':
+                return '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.';
+            case 'auth/network-request-failed':
+                return '네트워크 연결 상태를 확인해 주세요.';
+            default:
+                return '오류가 발생했습니다: ' + error.message;
+        }
+    }
+
     function login() {
-        const email = document.getElementById('auth-email').value;
+        const email = document.getElementById('auth-email').value.trim();
         const pass = document.getElementById('auth-password').value;
-        auth.signInWithEmailAndPassword(email, pass).catch(e => alert(e.message));
+        
+        if (!email || !pass) {
+            alert("이메일과 비밀번호를 모두 입력해 주세요.");
+            return;
+        }
+
+        auth.signInWithEmailAndPassword(email, pass).catch(e => alert(getAuthErrorMessage(e)));
     }
 
     function signup() {
-        const email = document.getElementById('auth-email').value;
+        const email = document.getElementById('auth-email').value.trim();
         const pass = document.getElementById('auth-password').value;
-        auth.createUserWithEmailAndPassword(email, pass).then(() => alert("회원가입 완료!")).catch(e => alert(e.message));
+
+        if (!email || !pass) {
+            alert("이메일과 비밀번호를 모두 입력해 주세요.");
+            return;
+        }
+
+        auth.createUserWithEmailAndPassword(email, pass)
+            .then(() => alert("회원가입이 완료되었습니다!"))
+            .catch(e => alert(getAuthErrorMessage(e)));
     }
 
     function logout() { auth.signOut(); }
@@ -341,12 +379,10 @@
                 const day = mData.days[dateKey];
                 
                 if (!isMorning) {
-                    // 근무 패턴이 모닝이 아니게 변경된 경우, 수동 추가(manualEarned)가 아니었다면 자동 +1 지급분을 0으로 초기화
                     if (day.earned === 1 && !day.manualEarned) {
                         day.earned = 0;
                     }
                 } else {
-                    // 근무 패턴이 모닝인 경우
                     const isNonWork = ['휴무', '연차', '검진'].includes(day.status);
                     if (isNonWork) {
                         if (day.earned === 1 && !day.manualEarned) {
@@ -664,7 +700,6 @@
         document.getElementById('setting-ticket-label').innerText = `🎫 ${currentYear}년 ${currentMonth + 1}월 기본 식권 수량`;
         document.getElementById('base-ticket-input').value = userMonthData.baseTicketCount || 9;
 
-        // 현재 로그인 계정 이메일 표시
         if (currentUser) {
             document.getElementById('user-email-display').innerText = currentUser.email || '이메일 정보 없음';
         }
