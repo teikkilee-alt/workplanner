@@ -47,17 +47,9 @@
         .calendar-header div:nth-child(7) { color: #1976D2; }
 
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-        
-        /* 고정 높이 및 정교한 고정 레이아웃 적용 */
-        .day-cell { height: 80px; border-radius: 6px; border: 0.5px solid #E0E0E0; padding: 3px 1px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; cursor: pointer; font-size: 11px; position: relative; box-sizing: border-box; background: white; }
+        .day-cell { height: 78px; border-radius: 6px; border: 0.5px solid #E0E0E0; padding: 3px 2px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; cursor: pointer; font-size: 11px; position: relative; box-sizing: border-box; background: white; }
         .day-cell.selected { border: 2.5px solid #E65100 !important; }
         .day-cell.other-month { opacity: 0.35; }
-
-        .cell-row { width: 100%; text-align: center; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-        .date-row { height: 16px; font-size: 11px; line-height: 16px; }
-        .holiday-row { height: 14px; font-size: 8px; line-height: 14px; font-weight: bold; }
-        .ticket-row { height: 14px; font-size: 9px; line-height: 14px; }
-        .overtime-row { height: 14px; font-size: 10px; line-height: 14px; font-weight: bold; }
 
         /* Day Details Section */
         .detail-card { background: #F5F5F5; border-radius: 16px; padding: 14px; margin-top: 10px; }
@@ -81,17 +73,6 @@
         .shift-options { display: flex; gap: 4px; margin-top: 6px; }
         .shift-opt { flex: 1; text-align: center; padding: 8px 0; border: 1px solid #E0E0E0; border-radius: 8px; font-size: 11px; cursor: pointer; background: #F5F5F5; font-weight: bold; }
         .shift-opt.selected { border: 2px solid #1E88E5; }
-
-        /* Switch UI */
-        .switch-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
-        .switch-row:last-child { border-bottom: none; }
-        .switch-label { font-size: 14px; font-weight: bold; color: #333; }
-        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 24px; }
-        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
-        input:checked + .slider { background-color: #1976D2; }
-        input:checked + .slider:before { transform: translateX(20px); }
     </style>
 </head>
 <body>
@@ -165,33 +146,6 @@
         <!-- 설정 탭 -->
         <div id="settings-page" class="page">
             <h2 style="margin-bottom: 16px;">⚙️ 설정</h2>
-
-            <!-- 공휴일 표시 설정 카드 -->
-            <div class="setting-card">
-                <h4>🌐 국가별 공휴일 표시 설정</h4>
-                <div class="switch-row">
-                    <span class="switch-label">🇰🇷 대한민국 공휴일</span>
-                    <label class="switch">
-                        <input type="checkbox" id="toggle-kr" onchange="updateHolidayToggle('kr', this.checked)">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div class="switch-row">
-                    <span class="switch-label">🇯🇵 일본 공휴일</span>
-                    <label class="switch">
-                        <input type="checkbox" id="toggle-jp" onchange="updateHolidayToggle('jp', this.checked)">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div class="switch-row">
-                    <span class="switch-label">🇨🇳 중국 공휴일</span>
-                    <label class="switch">
-                        <input type="checkbox" id="toggle-cn" onchange="updateHolidayToggle('cn', this.checked)">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-            </div>
-
             <div class="setting-card">
                 <h4 id="setting-ticket-label">🎫 기본 식권 수량 설정</h4>
                 <div style="display: flex; gap: 8px;">
@@ -234,11 +188,6 @@
     </div>
 </div>
 
-<!-- 
-    ===================================================================
-    👇 자바스크립트는 </body> 바로 위 <script> 태그 안에 작성됩니다.
-    ===================================================================
--->
 <script>
     const firebaseConfig = {
         apiKey: "AIzaSyDnwYQ6WT9TVD-y5hbDWU7LkuafgIrivfQ",
@@ -261,9 +210,6 @@
     let userMonthData = {};
     let allMonthsData = {};
 
-    // 국가별 공휴일 표시 설정 (기본값: 한국 ON, 일본 OFF, 중국 OFF)
-    let holidaySettings = JSON.parse(localStorage.getItem('holidaySettings')) || { kr: true, jp: false, cn: false };
-
     auth.onAuthStateChanged(user => {
         if (user) {
             currentUser = user;
@@ -277,138 +223,120 @@
         }
     });
 
-    // 1. 대한민국 공휴일
+    // 대한민국 공휴일 및 대체공휴일 판단 함수
     function getKoreanHoliday(year, month, day) {
-        const m = month + 1;
+        const m = month + 1; // 1~12월
         const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const monthDay = `${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
+        // 1. 양력 고정 공휴일
         const fixedHolidays = {
-            "01-01": "신정", "03-01": "삼일절", "05-05": "어린이날", "06-06": "현충일",
-            "08-15": "광복절", "10-03": "개천절", "10-09": "한글날", "12-25": "성탄절"
+            "01-01": "신정",
+            "03-01": "삼일절",
+            "05-05": "어린이날",
+            "06-06": "현충일",
+            "08-15": "광복절",
+            "10-03": "개천절",
+            "10-09": "한글날",
+            "12-25": "성탄절"
         };
 
+        // 2. 연도별 음력 명절, 대체공휴일 및 기타 지정 공휴일 (2024~2028년)
         const holidayMap = {
+            // 2024년
             "2024-02-09": "설날 연휴", "2024-02-10": "설날", "2024-02-11": "설날 연휴", "2024-02-12": "대체공휴일",
-            "2024-04-10": "총선", "2024-05-06": "대체공휴일", "2024-05-15": "석가탄신일",
-            "2024-09-16": "추석 연휴", "2024-09-17": "추석", "2024-09-18": "추석 연휴", "2024-10-01": "임시공휴일",
+            "2024-04-10": "국회의원 선거",
+            "2024-05-06": "대체공휴일",
+            "2024-05-15": "부처님오신날",
+            "2024-09-16": "추석 연휴", "2024-09-17": "추석", "2024-09-18": "추석 연휴",
+            "2024-10-01": "임시공휴일",
 
+            // 2025년
             "2025-01-28": "설날 연휴", "2025-01-29": "설날", "2025-01-30": "설날 연휴", "2025-01-31": "임시공휴일",
-            "2025-03-03": "대체공휴일", "2025-05-05": "어린이/석가탄신", "2025-05-06": "대체공휴일",
+            "2025-03-03": "대체공휴일",
+            "2025-05-05": "어린이날/부처님오신날", "2025-05-06": "대체공휴일",
             "2025-10-05": "추석 연휴", "2025-10-06": "추석", "2025-10-07": "추석 연휴", "2025-10-08": "대체공휴일",
 
+            // 2026년
             "2026-02-16": "설날 연휴", "2026-02-17": "설날", "2026-02-18": "설날 연휴",
-            "2026-03-02": "대체공휴일", "2026-05-24": "석가탄신일", "2026-05-25": "대체공휴일",
-            "2026-06-03": "지방선거", "2026-08-17": "대체공휴일",
+            "2026-03-02": "대체공휴일",
+            "2026-05-24": "부처님오신날", "2026-05-25": "대체공휴일",
+            "2026-06-03": "지방선거",
+            "2026-08-17": "대체공휴일",
             "2026-09-24": "추석 연휴", "2026-09-25": "추석", "2026-09-26": "추석 연휴", "2026-09-28": "대체공휴일",
             "2026-10-05": "대체공휴일",
 
+            // 2027년
             "2027-02-06": "설날 연휴", "2027-02-07": "설날", "2027-02-08": "설날 연휴", "2027-02-09": "대체공휴일",
-            "2027-03-03": "대선", "2027-05-13": "석가탄신일", "2027-06-07": "대체공휴일", "2027-08-16": "대체공휴일",
+            "2027-03-03": "대통령 선거",
+            "2027-05-13": "부처님오신날",
+            "2027-06-07": "대체공휴일",
+            "2027-08-16": "대체공휴일",
             "2027-09-14": "추석 연휴", "2027-09-15": "추석", "2027-09-16": "추석 연휴",
             "2027-10-04": "대체공휴일", "2027-10-11": "대체공휴일",
 
+            // 2028년
             "2028-01-26": "설날 연휴", "2028-01-27": "설날", "2028-01-28": "설날 연휴",
-            "2028-05-02": "석가탄신일", "2028-05-29": "대체공휴일",
-            "2028-10-02": "추석 연휴", "2028-10-03": "추석/개천절", "2028-10-04": "추석 연휴", "2028-10-05": "대체공휴일", "2028-10-06": "대체공휴일", "2028-12-26": "대체공휴일"
+            "2028-05-02": "부처님오신날",
+            "2028-05-29": "대체공휴일",
+            "2028-10-02": "추석 연휴", "2028-10-03": "추석/개천절", "2028-10-04": "추석 연휴", "2028-10-05": "대체공휴일", "2028-10-06": "대체공휴일",
+            "2028-12-26": "대체공휴일"
         };
 
         if (holidayMap[dateStr]) return holidayMap[dateStr];
         if (fixedHolidays[monthDay]) return fixedHolidays[monthDay];
+
         return null;
     }
 
-    // 2. 일본 공휴일
-    function getJapaneseHoliday(year, month, day) {
-        const m = month + 1;
-        const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const monthDay = `${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-        const fixedJp = {
-            "01-01": "元日", "02-11": "建国記念", "02-23": "天皇誕生日",
-            "04-29": "昭和の日", "05-03": "憲法記念日", "05-04": "みどもの日",
-            "05-05": "こどもの日", "11-03": "文化の日", "11-23": "勤労感謝"
-        };
-
-        const varJp = {
-            "2024-01-08": "成人の日", "2024-03-20": "春分の日", "2024-07-15": "海の日", "2024-08-11": "山の日", "2024-08-12": "振替休日", "2024-09-16": "敬老の日", "2024-09-22": "秋分の日", "2024-09-23": "振替休日", "2024-10-14": "スポーツの日",
-            "2025-01-13": "成人の日", "2025-03-20": "春分の日", "2025-07-21": "海の日", "2025-08-11": "山の日", "2025-09-15": "敬老の日", "2025-09-23": "秋分の日", "2025-10-13": "スポーツの日",
-            "2026-01-12": "成人の日", "2026-03-20": "春分の日", "2026-07-20": "海の日", "2026-08-11": "山の日", "2026-09-21": "敬老の日", "2026-09-22": "国民の休日", "2026-09-23": "秋分の日", "2026-10-12": "スポーツの日",
-            "2027-01-11": "成人の日", "2027-03-21": "春分の日", "2027-07-19": "海の日", "2027-08-11": "山の日", "2027-09-20": "敬老の日", "2027-09-23": "秋分の日", "2027-10-11": "スポーツの日",
-            "2028-01-10": "成人の日", "2028-03-20": "春分の日", "2028-07-17": "海の日", "2028-08-11": "山の日", "2028-09-18": "敬老の日", "2028-09-22": "秋分の日", "2028-10-09": "スポーツの日"
-        };
-
-        if (varJp[dateStr]) return varJp[dateStr];
-        if (fixedJp[monthDay]) return fixedJp[monthDay];
-        return null;
-    }
-
-    // 3. 중국 공휴일
-    function getChineseHoliday(year, month, day) {
-        const m = month + 1;
-        const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const monthDay = `${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-        const fixedCn = {
-            "01-01": "元旦", "05-01": "劳动节",
-            "10-01": "国庆节", "10-02": "国庆节", "10-03": "国庆节", "10-04": "国庆节", "10-05": "国庆节", "10-06": "国庆节", "10-07": "国庆节"
-        };
-
-        const varCn = {
-            "2024-02-10": "春节", "2024-02-11": "春节", "2024-02-12": "春节", "2024-04-04": "清明节", "2024-06-10": "端午节", "2024-09-17": "中秋节",
-            "2025-01-29": "春节", "2025-01-30": "春节", "2025-01-31": "春节", "2025-04-04": "清明节", "2025-05-31": "端午节", "2025-10-06": "中秋节",
-            "2026-02-17": "春节", "2026-02-18": "春节", "2026-02-19": "春节", "2026-04-05": "清明节", "2026-06-19": "端午节", "2026-09-25": "中秋节",
-            "2027-02-07": "春节", "2027-02-08": "春节", "2027-02-09": "春节", "2027-04-05": "清明节", "2027-06-09": "端午节", "2027-09-15": "中秋节",
-            "2028-01-27": "春节", "2028-01-28": "春节", "2028-01-29": "春节", "2028-04-04": "清明节", "2028-05-28": "端午节", "2028-10-03": "中秋节"
-        };
-
-        if (varCn[dateStr]) return varCn[dateStr];
-        if (fixedCn[monthDay]) return fixedCn[monthDay];
-        return null;
-    }
-
-    // 선택된 설정에 따른 공휴일 수집 함수
-    function getActiveHolidays(year, month, day) {
-        let list = [];
-        if (holidaySettings.kr) {
-            const kr = getKoreanHoliday(year, month, day);
-            if (kr) list.push({ country: 'kr', name: kr, flag: '🇰🇷' });
-        }
-        if (holidaySettings.jp) {
-            const jp = getJapaneseHoliday(year, month, day);
-            if (jp) list.push({ country: 'jp', name: jp, flag: '🇯🇵' });
-        }
-        if (holidaySettings.cn) {
-            const cn = getChineseHoliday(year, month, day);
-            if (cn) list.push({ country: 'cn', name: cn, flag: '🇨🇳' });
-        }
-        return list;
-    }
-
+    // Firebase Auth 에러 코드를 친절한 한글 문구로 변환하는 함수
     function getAuthErrorMessage(error) {
         switch (error.code) {
-            case 'auth/weak-password': return '비밀번호는 최소 6자리 이상이어야 합니다.';
-            case 'auth/email-already-in-use': return '이미 가입되어 있는 이메일 주소입니다.';
-            case 'auth/invalid-email': return '올바른 이메일 형식이 아닙니다.';
+            case 'auth/weak-password':
+                return '비밀번호는 최소 6자리 이상이어야 합니다.';
+            case 'auth/email-already-in-use':
+                return '이미 가입되어 있는 이메일 주소입니다.';
+            case 'auth/invalid-email':
+                return '올바른 이메일 형식이 아닙니다.';
             case 'auth/user-not-found':
             case 'auth/wrong-password':
-            case 'auth/invalid-credential': return '이메일 또는 비밀번호가 올바르지 않습니다.';
-            default: return '오류가 발생했습니다: ' + error.message;
+            case 'auth/invalid-credential':
+                return '이메일 또는 비밀번호가 올바르지 않습니다.';
+            case 'auth/missing-password':
+                return '비밀번호를 입력해 주세요.';
+            case 'auth/too-many-requests':
+                return '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.';
+            case 'auth/network-request-failed':
+                return '네트워크 연결 상태를 확인해 주세요.';
+            default:
+                return '오류가 발생했습니다: ' + error.message;
         }
     }
 
     function login() {
         const email = document.getElementById('auth-email').value.trim();
         const pass = document.getElementById('auth-password').value;
-        if (!email || !pass) { alert("이메일과 비밀번호를 모두 입력해 주세요."); return; }
+        
+        if (!email || !pass) {
+            alert("이메일과 비밀번호를 모두 입력해 주세요.");
+            return;
+        }
+
         auth.signInWithEmailAndPassword(email, pass).catch(e => alert(getAuthErrorMessage(e)));
     }
 
     function signup() {
         const email = document.getElementById('auth-email').value.trim();
         const pass = document.getElementById('auth-password').value;
-        if (!email || !pass) { alert("이메일과 비밀번호를 모두 입력해 주세요."); return; }
-        auth.createUserWithEmailAndPassword(email, pass).then(() => alert("회원가입이 완료되었습니다!")).catch(e => alert(getAuthErrorMessage(e)));
+
+        if (!email || !pass) {
+            alert("이메일과 비밀번호를 모두 입력해 주세요.");
+            return;
+        }
+
+        auth.createUserWithEmailAndPassword(email, pass)
+            .then(() => alert("회원가입이 완료되었습니다!"))
+            .catch(e => alert(getAuthErrorMessage(e)));
     }
 
     function logout() { auth.signOut(); }
@@ -515,12 +443,17 @@
                 mData.days[dateKey] = { earned: isMorning ? 1 : 0, used: 0, status: '근무', overtime: 0, memo: '' };
             } else {
                 const day = mData.days[dateKey];
+                
                 if (!isMorning) {
-                    if (day.earned === 1 && !day.manualEarned) day.earned = 0;
+                    if (day.earned === 1 && !day.manualEarned) {
+                        day.earned = 0;
+                    }
                 } else {
                     const isNonWork = ['휴무', '연차', '검진'].includes(day.status);
                     if (isNonWork) {
-                        if (day.earned === 1 && !day.manualEarned) day.earned = 0;
+                        if (day.earned === 1 && !day.manualEarned) {
+                            day.earned = 0;
+                        }
                     } else if (day.earned === 0 && !day.resetByUser && !day.manualEarned) {
                         day.earned = 1;
                     }
@@ -551,11 +484,10 @@
         else cell.style.background = getShiftColor(shift);
 
         const dayOfWeek = new Date(y, m, d).getDay();
-        const holidays = getActiveHolidays(y, m, d);
-        const hasKrHoliday = holidays.some(h => h.country === 'kr');
+        const holidayName = getKoreanHoliday(y, m, d);
 
         let dateColor = 'black';
-        if (dayOfWeek === 0 || hasKrHoliday) dateColor = '#D32F2F'; // 일요일 또는 한국 공휴일 빨간색
+        if (dayOfWeek === 0 || holidayName) dateColor = '#D32F2F'; // 일요일 및 공휴일 빨간색
         else if (dayOfWeek === 6) dateColor = '#1976D2'; // 토요일 파란색
 
         let statusText = '';
@@ -564,18 +496,10 @@
         else if (dayData.status === '휴근') statusText = `<span style="color:#E65100; font-weight:bold;"> (휴근)</span>`;
         else if (dayData.status === '검진') statusText = `<span style="color:#2E7D32; font-weight:bold;"> (검진)</span>`;
 
+        let holidayTag = holidayName ? `<div style="color:#D32F2F; font-size:8px; font-weight:bold; line-height:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${holidayName}</div>` : '';
+
         let memoIcon = dayData.memo ? `<span style="color:#2E7D32; font-weight:bold;"> ✔</span>` : '';
 
-        // 공휴일 행 태그 생성
-        let holidayHTML = '&nbsp;';
-        if (holidays.length > 0) {
-            holidayHTML = holidays.map(h => {
-                let color = h.country === 'kr' ? '#D32F2F' : (h.country === 'jp' ? '#1976D2' : '#E65100');
-                return `<span style="color:${color};">${h.flag}${h.name}</span>`;
-            }).join(' ');
-        }
-
-        // 식권 행 생성
         let earnedUsedHTML = '&nbsp;';
         if (dayData.earned > 0 || dayData.used > 0) {
             let earnedStr = dayData.earned > 0 ? `<span style="color:#1976D2; font-weight:bold;">+${dayData.earned}</span>` : '';
@@ -583,31 +507,30 @@
             earnedUsedHTML = `${earnedStr} ${usedStr}`.trim();
         }
 
-        // 연장근무 행 생성
         let overtimeHTML = dayData.overtime > 0 ? `${dayData.overtime}h` : '&nbsp;';
 
-        // 완벽한 수평 유지를 위한 고정 행 구조
         cell.innerHTML = `
-            <div class="cell-row date-row" style="color:${dateColor}; font-weight:bold;">
-                ${d}${statusText}${memoIcon}
+            <div style="color:${dateColor}; line-height: 1.1; text-align: center; width: 100%;">
+                <span style="font-weight:bold;">${d}</span>${statusText}${memoIcon}
+                ${holidayTag}
             </div>
-            <div class="cell-row holiday-row">
-                ${holidayHTML}
-            </div>
-            <div class="cell-row ticket-row">
-                ${earnedUsedHTML}
-            </div>
-            <div class="cell-row overtime-row">
-                ${overtimeHTML}
-            </div>
+            <div style="font-size:9px; display:flex; gap:2px; min-height:12px; align-items:center; justify-content:center;">${earnedUsedHTML}</div>
+            <div style="font-weight:bold; font-size:10px; min-height:13px; display:flex; align-items:center; justify-content:center;">${overtimeHTML}</div>
         `;
 
         cell.onclick = () => {
             if (isOtherMonth) {
-                currentYear = y; currentMonth = m; selectedDay = d; loadData();
+                currentYear = y;
+                currentMonth = m;
+                selectedDay = d;
+                loadData();
             } else {
-                if (selectedDay === d) openMemoModal(dayData.memo || '');
-                else { selectedDay = d; renderCalendar(); }
+                if (selectedDay === d) {
+                    openMemoModal(dayData.memo || '');
+                } else {
+                    selectedDay = d;
+                    renderCalendar();
+                }
             }
         };
 
@@ -619,10 +542,12 @@
         const grid = document.getElementById('calendar-grid');
         grid.innerHTML = '';
 
-        let prevYear = currentYear, prevMonth = currentMonth - 1;
+        let prevYear = currentYear;
+        let prevMonth = currentMonth - 1;
         if (prevMonth < 0) { prevMonth = 11; prevYear--; }
 
-        let nextYear = currentYear, nextMonth = currentMonth + 1;
+        let nextYear = currentYear;
+        let nextMonth = currentMonth + 1;
         if (nextMonth > 11) { nextMonth = 0; nextYear++; }
 
         const firstDay = new Date(currentYear, currentMonth, 1).getDay();
@@ -635,7 +560,8 @@
 
         for(let i=0; i<firstDay; i++) {
             const pDay = prevMonthTotalDays - (firstDay - 1 - i);
-            grid.appendChild(createCellElement(prevYear, prevMonth, pDay, true));
+            const cell = createCellElement(prevYear, prevMonth, pDay, true);
+            grid.appendChild(cell);
         }
 
         for(let d=1; d<=totalDays; d++) {
@@ -651,13 +577,15 @@
                 if(!['휴무', '검진', '연차'].includes(dayData.status)) remainingWorkDays++;
             }
 
-            grid.appendChild(createCellElement(currentYear, currentMonth, d, false));
+            const cell = createCellElement(currentYear, currentMonth, d, false);
+            grid.appendChild(cell);
         }
 
         const totalRendered = firstDay + totalDays;
         const nextDaysCount = (7 - (totalRendered % 7)) % 7;
         for(let n=1; n<=nextDaysCount; n++) {
-            grid.appendChild(createCellElement(nextYear, nextMonth, n, true));
+            const cell = createCellElement(nextYear, nextMonth, n, true);
+            grid.appendChild(cell);
         }
 
         const baseTickets = userMonthData.baseTicketCount || 9;
@@ -679,8 +607,8 @@
         const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
         const dayData = (userMonthData.days && userMonthData.days[dateKey]) || { earned:0, used:0, status:'근무', overtime:0, memo:'' };
         
-        const holidays = getActiveHolidays(currentYear, currentMonth, selectedDay);
-        const holidayStr = holidays.length > 0 ? ` (${holidays.map(h => `${h.flag}${h.name}`).join(', ')})` : '';
+        const holidayName = getKoreanHoliday(currentYear, currentMonth, selectedDay);
+        const holidayStr = holidayName ? ` (${holidayName})` : '';
 
         document.getElementById('selected-date-text').innerText = `📝 ${currentMonth + 1}월 ${selectedDay}일${holidayStr} 선택됨`;
         document.getElementById('detail-overtime').innerText = `⏱️ 연장근무: ${dayData.overtime || 0}시간`;
@@ -711,7 +639,11 @@
         workBtn.innerText = wText;
 
         const resetBox = document.getElementById('reset-ticket-box');
-        resetBox.style.display = ((dayData.earned || 0) > 0 || (dayData.used || 0) > 0) ? 'block' : 'none';
+        if((dayData.earned || 0) > 0 || (dayData.used || 0) > 0) {
+            resetBox.style.display = 'block';
+        } else {
+            resetBox.style.display = 'none';
+        }
     }
 
     function getSelectedDayData() {
@@ -725,14 +657,21 @@
 
     function addTicket(val) {
         const { data } = getSelectedDayData();
-        if(val > 0) { data.earned = (data.earned || 0) + val; data.manualEarned = true; }
-        else { data.used = Math.max(0, (data.used || 0) - val); }
+        if(val > 0) {
+            data.earned = (data.earned || 0) + val;
+            data.manualEarned = true;
+        } else {
+            data.used = Math.max(0, (data.used || 0) - val);
+        }
         saveData();
     }
 
     function resetDayTicket() {
         const { data } = getSelectedDayData();
-        data.earned = 0; data.used = 0; data.resetByUser = true; data.manualEarned = false;
+        data.earned = 0;
+        data.used = 0;
+        data.resetByUser = true;
+        data.manualEarned = false;
         saveData();
     }
 
@@ -744,27 +683,42 @@
 
     function setStatus(status) {
         const { data, dayNum } = getSelectedDayData();
-        if (data.status === '휴근' && status !== '휴근') data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
+        
+        if (data.status === '휴근' && status !== '휴근') {
+            data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
+        }
+
         data.status = status;
         
         const shift = getShiftForDay(dayNum, userMonthData);
         const isMorning = shift && shift.includes("모닝");
 
         if (['휴무', '연차', '검진'].includes(status)) {
-            if (isMorning && data.earned === 1 && !data.manualEarned) data.earned = 0;
+            if (isMorning && data.earned === 1 && !data.manualEarned) {
+                data.earned = 0;
+            }
         } else {
-            if (isMorning && data.earned === 0 && !data.resetByUser) data.earned = 1;
+            if (isMorning && data.earned === 0 && !data.resetByUser) {
+                data.earned = 1;
+            }
         }
         saveData();
     }
 
     function toggleOffStatus() {
         const { data, dayNum } = getSelectedDayData();
-        if (data.status === '휴근') data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
-        data.status = data.status === '휴무' ? '검진' : '휴무';
+        
+        if (data.status === '휴근') {
+            data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
+        }
+
+        const nextStatus = data.status === '휴무' ? '검진' : '휴무';
+        data.status = nextStatus;
 
         const shift = getShiftForDay(dayNum, userMonthData);
-        if (shift && shift.includes("모닝") && data.earned === 1 && !data.manualEarned) data.earned = 0;
+        if (shift && shift.includes("모닝") && data.earned === 1 && !data.manualEarned) {
+            data.earned = 0;
+        }
         saveData();
     }
 
@@ -773,15 +727,21 @@
         const cycle = ['근무', '남', '북', '휴근'];
         let idx = cycle.indexOf(data.status);
 
-        if (data.status === '휴근') data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
+        if (data.status === '휴근') {
+            data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
+        }
 
         let next = cycle[(idx + 1) % cycle.length];
         data.status = next;
 
-        if (next === '휴근') data.overtime = (data.overtime || 0) + 8.0;
+        if (next === '휴근') {
+            data.overtime = (data.overtime || 0) + 8.0;
+        }
 
         const shift = getShiftForDay(dayNum, userMonthData);
-        if (shift && shift.includes("모닝") && data.earned === 0 && !data.resetByUser) data.earned = 1;
+        if (shift && shift.includes("모닝") && data.earned === 0 && !data.resetByUser) {
+            data.earned = 1;
+        }
         saveData();
     }
 
@@ -813,10 +773,6 @@
     }
 
     function renderSettings() {
-        document.getElementById('toggle-kr').checked = !!holidaySettings.kr;
-        document.getElementById('toggle-jp').checked = !!holidaySettings.jp;
-        document.getElementById('toggle-cn').checked = !!holidaySettings.cn;
-
         document.getElementById('setting-ticket-label').innerText = `🎫 ${currentYear}년 ${currentMonth + 1}월 기본 식권 수량`;
         document.getElementById('base-ticket-input').value = userMonthData.baseTicketCount || 9;
 
@@ -851,12 +807,6 @@
         });
     }
 
-    function updateHolidayToggle(country, value) {
-        holidaySettings[country] = value;
-        localStorage.setItem('holidaySettings', JSON.stringify(holidaySettings));
-        renderCalendar();
-    }
-
     function saveBaseTickets() {
         userMonthData.baseTicketCount = parseInt(document.getElementById('base-ticket-input').value) || 0;
         saveData();
@@ -868,284 +818,6 @@
         saveData();
         renderSettings();
     }
-
-    // ===================================================================
-    // 💡 추가하고자 하시는 자바스크립트 코드/함수가 있다면 이 아래에 넣으시면 됩니다.
-    // ===================================================================
-import React, { useState } from 'react';
-
-// 1. 공휴일 한국어 변환 매핑 (외국어 명칭 및 불필요 표기 정리)
-const HOLIDAY_MAP = {
-  '国庆节': '🇨🇳 국경절',
-  '국경절': '🇨🇳 국경절',
-  'スポーツの日': '🇯🇵 스포츠의 날',
-  '스포츠의 날': '🇯🇵 스포츠의 날',
-  '개천절': '🇰🇷 개천절',
-  '한글날': '🇰🇷 한글날',
-  '대체공휴일': '🇰🇷 대체공휴일',
-};
-
-// 2. 2026년 10월 날짜 데이터 샘플
-const INITIAL_DAYS_DATA = {
-  '2026-10-01': { holidays: ['국경절'], overtime: '2h', mealTickets: 3, status: '근무' },
-  '2026-10-02': { holidays: ['국경절'], overtime: '2h', mealTickets: 1, status: '근무' },
-  '2026-10-03': { holidays: ['개천절', '국경절'], overtime: '', mealTickets: 0, status: '휴무' },
-  '2026-10-04': { holidays: ['국경절'], overtime: '', mealTickets: 0, status: '휴무' },
-  '2026-10-05': { holidays: ['대체공휴일', '국경절', '추석연휴'], overtime: '2h', mealTickets: 1, status: '근무' },
-  '2026-10-06': { holidays: ['국경절'], overtime: '2h', mealTickets: 1, status: '근무' },
-  '2026-10-07': { holidays: ['국경절', '개천절'], overtime: '2h', mealTickets: 1, status: '근무' },
-  '2026-10-08': { holidays: ['국경절'], overtime: '2h', mealTickets: 1, status: '근무' },
-  '2026-10-09': { holidays: ['한글날'], overtime: '', mealTickets: 0, status: '휴무' },
-  '2026-10-12': { holidays: ['스포츠의 날'], overtime: '2h', mealTickets: 1, status: '근무' },
-};
-
-export default function CalendarApp() {
-  const [selectedDate, setSelectedDate] = useState('2026-10-07');
-  const [daysData, setDaysData] = useState(INITIAL_DAYS_DATA);
-  const [workStatus, setWorkStatus] = useState('근무');
-
-  // 셀 내부 공휴일 텍스트 처리: 2개 이상일 때 '첫공휴일 외 N개' 표기
-  const getFormattedHolidayBadge = (holidays) => {
-    if (!holidays || holidays.length === 0) return null;
-    const translatedList = holidays.map((h) => HOLIDAY_MAP[h] || h);
-
-    if (translatedList.length > 1) {
-      return `${translatedList[0]} 외 ${translatedList.length - 1}`;
-    }
-    return translatedList[0];
-  };
-
-  // 선택된 날짜 정보 및 공휴일 한국어 풀버전 리스트
-  const selectedDayInfo = daysData[selectedDate] || {};
-  const selectedHolidays = (selectedDayInfo.holidays || []).map((h) => HOLIDAY_MAP[h] || h);
-  const selectedDayNum = parseInt(selectedDate.split('-')[2], 10);
-  const selectedMonthNum = parseInt(selectedDate.split('-')[1], 10);
-
-  const handleDateClick = (dateStr) => {
-    setSelectedDate(dateStr);
-    if (daysData[dateStr]?.status) {
-      setWorkStatus(daysData[dateStr].status);
-    }
-  };
-
-  // 달력 그리드 렌더링 (셀 높이를 고정하여 레이아웃이 변하지 않음)
-  const renderCalendarCells = () => {
-    const cells = [];
-
-    // 9월 (이전달) 날짜 4일
-    const prevMonthDays = [
-      { day: 27, fullDate: '2026-09-27', holidays: [] },
-      { day: 28, fullDate: '2026-09-28', holidays: ['대체공휴일'], overtimeAdd: '2.5h' },
-      { day: 29, fullDate: '2026-09-29', holidays: [], overtimeAdd: '3h' },
-      { day: 30, fullDate: '2026-09-30', holidays: [], overtimeAdd: '2h' },
-    ];
-
-    prevMonthDays.forEach((item, idx) => {
-      cells.push(
-        <div key={`prev-${idx}`} className="h-[84px] bg-gray-50 border border-gray-100 p-1 flex flex-col justify-between text-gray-400 opacity-60">
-          <div className="flex justify-between items-center text-xs">
-            <span className={idx === 0 ? 'text-red-400' : ''}>{item.day}</span>
-            <span className="text-[10px]">{item.overtimeAdd}</span>
-          </div>
-          {item.holidays.length > 0 && (
-            <div className="text-[10px] truncate text-gray-400">
-              {getFormattedHolidayBadge(item.holidays)}
-            </div>
-          )}
-          <div className="h-3"></div>
-        </div>
-      );
-    });
-
-    // 10월 날짜 (1일 ~ 31일)
-    for (let d = 1; d <= 31; d++) {
-      const dayStr = d < 10 ? `0${d}` : `${d}`;
-      const fullDate = `2026-10-${dayStr}`;
-      const isSelected = selectedDate === fullDate;
-      const dayData = daysData[fullDate] || {};
-      const holidays = dayData.holidays || [];
-      const isSunday = (d + 4) % 7 === 1;
-      const isSaturday = (d + 4) % 7 === 0;
-
-      const hasWorkSchedule = [
-        '2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06', '2026-10-07',
-        '2026-10-08', '2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15',
-        '2026-10-16', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22',
-        '2026-10-26', '2026-10-27'
-      ].includes(fullDate);
-
-      cells.push(
-        <div
-          key={fullDate}
-          onClick={() => handleDateClick(fullDate)}
-          /* h-[84px] 고정 높이와 overflow-hidden으로 달력 틀 고정 */
-          className={`h-[84px] p-1 border flex flex-col justify-between cursor-pointer transition-all overflow-hidden ${
-            isSelected
-              ? 'border-2 border-orange-500 rounded-lg shadow-sm z-10 bg-white'
-              : hasWorkSchedule
-              ? 'bg-purple-100/60 border-purple-200'
-              : 'bg-white border-gray-100'
-          }`}
-        >
-          {/* 상단: 날짜 */}
-          <div className="flex justify-between items-center">
-            <span
-              className={`text-xs font-semibold ${
-                isSunday || holidays.length > 0
-                  ? 'text-red-500'
-                  : isSaturday
-                  ? 'text-blue-500'
-                  : 'text-gray-800'
-              }`}
-            >
-              {d}
-            </span>
-          </div>
-
-          {/* 중앙: 공휴일 표기 (항상 1줄 고정, 외 N개 형태) */}
-          <div className="my-auto">
-            {holidays.length > 0 && (
-              <div className="text-[10px] font-medium text-red-600 bg-red-50 px-1 py-0.5 rounded truncate">
-                {getFormattedHolidayBadge(holidays)}
-              </div>
-            )}
-          </div>
-
-          {/* 하단: 연장근무 시간 */}
-          <div className="text-right text-[10px] text-gray-600 font-medium h-3">
-            {dayData.overtime || ''}
-          </div>
-        </div>
-      );
-    }
-
-    return cells;
-  };
-
-  return (
-    <div className="max-w-md mx-auto bg-gray-50 min-h-screen flex flex-col justify-between text-gray-800 font-sans pb-16">
-      {/* 1. 상단 통계 바 */}
-      <div className="bg-sky-50/80 p-3 m-2 rounded-xl shadow-sm border border-sky-100 flex justify-between items-center text-xs">
-        <div className="flex-1 text-center border-r border-sky-200">
-          <div className="text-gray-500 text-[11px] font-medium">🎫 남은 식권 수</div>
-          <div className="text-blue-600 font-bold text-sm mt-0.5">
-            12 개 <span className="text-xs font-normal text-blue-500">(-3)</span>
-          </div>
-          <div className="text-[10px] text-gray-400 mt-0.5">총 휴무 일수: 10일</div>
-        </div>
-        <div className="flex-1 text-center">
-          <div className="text-gray-500 text-[11px] font-medium">⏰ 총 연장 근무 시간</div>
-          <div className="text-orange-600 font-bold text-sm mt-0.5">
-            26 h <span className="text-xs font-normal text-gray-500">(20일 남음)</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. 달력 헤더 */}
-      <div className="flex items-center justify-center gap-6 my-2">
-        <button className="text-gray-400 hover:text-gray-600 text-sm">◀</button>
-        <h2 className="text-lg font-bold tracking-tight">2026년 10월</h2>
-        <button className="text-gray-400 hover:text-gray-600 text-sm">▶</button>
-      </div>
-
-      {/* 3. 고정 그리드 달력 */}
-      <div className="px-2">
-        <div className="grid grid-cols-7 text-center font-bold text-xs py-1.5 bg-white border-b border-gray-100">
-          <span className="text-red-500">일</span>
-          <span>월</span>
-          <span>화</span>
-          <span>수</span>
-          <span>목</span>
-          <span>금</span>
-          <span className="text-blue-500">토</span>
-        </div>
-
-        <div className="grid grid-cols-7 gap-0.5 bg-gray-100 p-0.5 rounded-b-md">
-          {renderCalendarCells()}
-        </div>
-      </div>
-
-      {/* 4. 하단 상세 정보 및 메모 영역 (요청 2, 3번 적용) */}
-      <div className="p-4 bg-white border-t border-gray-200 mt-3 shadow-lg">
-        {/* 선택된 날짜 메모 헤더 */}
-        <div className="pb-2 border-b border-gray-100">
-          <h3 className="text-base font-bold text-gray-900 flex items-center gap-1">
-            📝 {selectedMonthNum}월 {selectedDayNum}일 메모
-          </h3>
-        </div>
-
-        {/* 해당 날짜 공휴일 한국어 풀버전 목록 */}
-        <div className="py-2.5 px-3 my-2 bg-gray-50 rounded-lg border border-gray-100">
-          <div className="text-xs font-semibold text-gray-500 mb-1">공휴일 정보</div>
-          {selectedHolidays.length > 0 ? (
-            <div className="text-xs font-bold text-red-600 space-y-1">
-              {selectedHolidays.map((holiday, idx) => (
-                <div key={idx} className="flex items-center gap-1">
-                  <span>•</span>
-                  <span>{holiday}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-xs text-gray-400">등록된 공휴일이 없습니다.</div>
-          )}
-        </div>
-
-        {/* 식권 및 연장시간 수량 조작 버튼 */}
-        <div className="grid grid-cols-4 gap-2 my-3">
-          <button className="py-2 text-xs font-bold text-blue-600 border border-blue-400 rounded-full hover:bg-blue-50">
-            식권+1
-          </button>
-          <button className="py-2 text-xs font-bold text-red-600 border border-red-400 rounded-full hover:bg-red-50">
-            식권-1
-          </button>
-          <button className="py-2 text-xs font-bold text-blue-600 border border-blue-400 rounded-full hover:bg-blue-50">
-            연장 +0.5
-          </button>
-          <button className="py-2 text-xs font-bold text-red-600 border border-red-400 rounded-full hover:bg-red-50">
-            연장 -0.5
-          </button>
-        </div>
-
-        {/* 선택 날짜 상세 상태 요약 */}
-        <div className="text-xs space-y-1 text-gray-700 bg-orange-50/50 p-2.5 rounded-lg mb-3">
-          <div>⏰ <b>연장근무:</b> {selectedDayInfo.overtime || '0시간'}</div>
-          <div>📌 <b>근무 상태:</b> {workStatus}</div>
-          <div>🎫 <b>식권:</b> {selectedDayInfo.mealTickets || 0}개 사용</div>
-        </div>
-
-        {/* 근무 상태 변경 버튼 그룹 */}
-        <div className="grid grid-cols-3 gap-1 bg-gray-100 p-1 rounded-lg">
-          {['휴무', '연차', '근무'].map((status) => (
-            <button
-              key={status}
-              onClick={() => setWorkStatus(status)}
-              className={`py-2 text-xs font-bold rounded-md transition-all ${
-                workStatus === status
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {status}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 5. 하단 탭 바 */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 flex justify-around py-2 z-20">
-        <div className="flex flex-col items-center text-xs text-blue-600 font-bold cursor-pointer">
-          <span>📅</span>
-          <span>달력</span>
-        </div>
-        <div className="flex flex-col items-center text-xs text-gray-400 cursor-pointer">
-          <span>⚙️</span>
-          <span>설정</span>
-        </div>
-      </div>
-    </div>
-  );
-}
 </script>
 </body>
 </html>
