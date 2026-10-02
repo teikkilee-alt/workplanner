@@ -47,9 +47,17 @@
         .calendar-header div:nth-child(7) { color: #1976D2; }
 
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-        .day-cell { height: 78px; border-radius: 6px; border: 0.5px solid #E0E0E0; padding: 3px 2px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; cursor: pointer; font-size: 11px; position: relative; box-sizing: border-box; background: white; }
+        
+        /* 완벽한 수평 정렬을 위한 4행 고정 레이아웃 */
+        .day-cell { height: 80px; border-radius: 6px; border: 0.5px solid #E0E0E0; padding: 3px 1px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; cursor: pointer; font-size: 11px; position: relative; box-sizing: border-box; background: white; }
         .day-cell.selected { border: 2.5px solid #E65100 !important; }
         .day-cell.other-month { opacity: 0.35; }
+
+        .cell-row { width: 100%; text-align: center; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+        .date-row { height: 16px; font-size: 11px; line-height: 16px; }
+        .holiday-row { height: 14px; font-size: 8px; line-height: 14px; font-weight: bold; }
+        .ticket-row { height: 14px; font-size: 9px; line-height: 14px; }
+        .overtime-row { height: 14px; font-size: 10px; line-height: 14px; font-weight: bold; }
 
         /* Day Details Section */
         .detail-card { background: #F5F5F5; border-radius: 16px; padding: 14px; margin-top: 10px; }
@@ -289,54 +297,33 @@
         return null;
     }
 
-    // Firebase Auth 에러 코드를 친절한 한글 문구로 변환하는 함수
     function getAuthErrorMessage(error) {
         switch (error.code) {
-            case 'auth/weak-password':
-                return '비밀번호는 최소 6자리 이상이어야 합니다.';
-            case 'auth/email-already-in-use':
-                return '이미 가입되어 있는 이메일 주소입니다.';
-            case 'auth/invalid-email':
-                return '올바른 이메일 형식이 아닙니다.';
+            case 'auth/weak-password': return '비밀번호는 최소 6자리 이상이어야 합니다.';
+            case 'auth/email-already-in-use': return '이미 가입되어 있는 이메일 주소입니다.';
+            case 'auth/invalid-email': return '올바른 이메일 형식이 아닙니다.';
             case 'auth/user-not-found':
             case 'auth/wrong-password':
-            case 'auth/invalid-credential':
-                return '이메일 또는 비밀번호가 올바르지 않습니다.';
-            case 'auth/missing-password':
-                return '비밀번호를 입력해 주세요.';
-            case 'auth/too-many-requests':
-                return '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.';
-            case 'auth/network-request-failed':
-                return '네트워크 연결 상태를 확인해 주세요.';
-            default:
-                return '오류가 발생했습니다: ' + error.message;
+            case 'auth/invalid-credential': return '이메일 또는 비밀번호가 올바르지 않습니다.';
+            case 'auth/missing-password': return '비밀번호를 입력해 주세요.';
+            case 'auth/too-many-requests': return '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.';
+            case 'auth/network-request-failed': return '네트워크 연결 상태를 확인해 주세요.';
+            default: return '오류가 발생했습니다: ' + error.message;
         }
     }
 
     function login() {
         const email = document.getElementById('auth-email').value.trim();
         const pass = document.getElementById('auth-password').value;
-        
-        if (!email || !pass) {
-            alert("이메일과 비밀번호를 모두 입력해 주세요.");
-            return;
-        }
-
+        if (!email || !pass) { alert("이메일과 비밀번호를 모두 입력해 주세요."); return; }
         auth.signInWithEmailAndPassword(email, pass).catch(e => alert(getAuthErrorMessage(e)));
     }
 
     function signup() {
         const email = document.getElementById('auth-email').value.trim();
         const pass = document.getElementById('auth-password').value;
-
-        if (!email || !pass) {
-            alert("이메일과 비밀번호를 모두 입력해 주세요.");
-            return;
-        }
-
-        auth.createUserWithEmailAndPassword(email, pass)
-            .then(() => alert("회원가입이 완료되었습니다!"))
-            .catch(e => alert(getAuthErrorMessage(e)));
+        if (!email || !pass) { alert("이메일과 비밀번호를 모두 입력해 주세요."); return; }
+        auth.createUserWithEmailAndPassword(email, pass).then(() => alert("회원가입이 완료되었습니다!")).catch(e => alert(getAuthErrorMessage(e)));
     }
 
     function logout() { auth.signOut(); }
@@ -443,17 +430,12 @@
                 mData.days[dateKey] = { earned: isMorning ? 1 : 0, used: 0, status: '근무', overtime: 0, memo: '' };
             } else {
                 const day = mData.days[dateKey];
-                
                 if (!isMorning) {
-                    if (day.earned === 1 && !day.manualEarned) {
-                        day.earned = 0;
-                    }
+                    if (day.earned === 1 && !day.manualEarned) day.earned = 0;
                 } else {
                     const isNonWork = ['휴무', '연차', '검진'].includes(day.status);
                     if (isNonWork) {
-                        if (day.earned === 1 && !day.manualEarned) {
-                            day.earned = 0;
-                        }
+                        if (day.earned === 1 && !day.manualEarned) day.earned = 0;
                     } else if (day.earned === 0 && !day.resetByUser && !day.manualEarned) {
                         day.earned = 1;
                     }
@@ -496,10 +478,14 @@
         else if (dayData.status === '휴근') statusText = `<span style="color:#E65100; font-weight:bold;"> (휴근)</span>`;
         else if (dayData.status === '검진') statusText = `<span style="color:#2E7D32; font-weight:bold;"> (검진)</span>`;
 
-        let holidayTag = holidayName ? `<div style="color:#D32F2F; font-size:8px; font-weight:bold; line-height:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${holidayName}</div>` : '';
-
         let memoIcon = dayData.memo ? `<span style="color:#2E7D32; font-weight:bold;"> ✔</span>` : '';
 
+        // 공휴일 행 (공휴일이 없는 날도 동일한 높이를 보장하기 위해 &nbsp; 처리)
+        let holidayHTML = holidayName 
+            ? `<span style="color:#D32F2F;">${holidayName}</span>` 
+            : '&nbsp;';
+
+        // 식권 행
         let earnedUsedHTML = '&nbsp;';
         if (dayData.earned > 0 || dayData.used > 0) {
             let earnedStr = dayData.earned > 0 ? `<span style="color:#1976D2; font-weight:bold;">+${dayData.earned}</span>` : '';
@@ -507,30 +493,31 @@
             earnedUsedHTML = `${earnedStr} ${usedStr}`.trim();
         }
 
+        // 연장근무 행
         let overtimeHTML = dayData.overtime > 0 ? `${dayData.overtime}h` : '&nbsp;';
 
+        // 고정 4행 레이아웃 적용
         cell.innerHTML = `
-            <div style="color:${dateColor}; line-height: 1.1; text-align: center; width: 100%;">
-                <span style="font-weight:bold;">${d}</span>${statusText}${memoIcon}
-                ${holidayTag}
+            <div class="cell-row date-row" style="color:${dateColor}; font-weight:bold;">
+                ${d}${statusText}${memoIcon}
             </div>
-            <div style="font-size:9px; display:flex; gap:2px; min-height:12px; align-items:center; justify-content:center;">${earnedUsedHTML}</div>
-            <div style="font-weight:bold; font-size:10px; min-height:13px; display:flex; align-items:center; justify-content:center;">${overtimeHTML}</div>
+            <div class="cell-row holiday-row">
+                ${holidayHTML}
+            </div>
+            <div class="cell-row ticket-row">
+                ${earnedUsedHTML}
+            </div>
+            <div class="cell-row overtime-row">
+                ${overtimeHTML}
+            </div>
         `;
 
         cell.onclick = () => {
             if (isOtherMonth) {
-                currentYear = y;
-                currentMonth = m;
-                selectedDay = d;
-                loadData();
+                currentYear = y; currentMonth = m; selectedDay = d; loadData();
             } else {
-                if (selectedDay === d) {
-                    openMemoModal(dayData.memo || '');
-                } else {
-                    selectedDay = d;
-                    renderCalendar();
-                }
+                if (selectedDay === d) openMemoModal(dayData.memo || '');
+                else { selectedDay = d; renderCalendar(); }
             }
         };
 
@@ -542,12 +529,10 @@
         const grid = document.getElementById('calendar-grid');
         grid.innerHTML = '';
 
-        let prevYear = currentYear;
-        let prevMonth = currentMonth - 1;
+        let prevYear = currentYear, prevMonth = currentMonth - 1;
         if (prevMonth < 0) { prevMonth = 11; prevYear--; }
 
-        let nextYear = currentYear;
-        let nextMonth = currentMonth + 1;
+        let nextYear = currentYear, nextMonth = currentMonth + 1;
         if (nextMonth > 11) { nextMonth = 0; nextYear++; }
 
         const firstDay = new Date(currentYear, currentMonth, 1).getDay();
@@ -560,8 +545,7 @@
 
         for(let i=0; i<firstDay; i++) {
             const pDay = prevMonthTotalDays - (firstDay - 1 - i);
-            const cell = createCellElement(prevYear, prevMonth, pDay, true);
-            grid.appendChild(cell);
+            grid.appendChild(createCellElement(prevYear, prevMonth, pDay, true));
         }
 
         for(let d=1; d<=totalDays; d++) {
@@ -577,15 +561,13 @@
                 if(!['휴무', '검진', '연차'].includes(dayData.status)) remainingWorkDays++;
             }
 
-            const cell = createCellElement(currentYear, currentMonth, d, false);
-            grid.appendChild(cell);
+            grid.appendChild(createCellElement(currentYear, currentMonth, d, false));
         }
 
         const totalRendered = firstDay + totalDays;
         const nextDaysCount = (7 - (totalRendered % 7)) % 7;
         for(let n=1; n<=nextDaysCount; n++) {
-            const cell = createCellElement(nextYear, nextMonth, n, true);
-            grid.appendChild(cell);
+            grid.appendChild(createCellElement(nextYear, nextMonth, n, true));
         }
 
         const baseTickets = userMonthData.baseTicketCount || 9;
@@ -683,42 +665,27 @@
 
     function setStatus(status) {
         const { data, dayNum } = getSelectedDayData();
-        
-        if (data.status === '휴근' && status !== '휴근') {
-            data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
-        }
-
+        if (data.status === '휴근' && status !== '휴근') data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
         data.status = status;
         
         const shift = getShiftForDay(dayNum, userMonthData);
         const isMorning = shift && shift.includes("모닝");
 
         if (['휴무', '연차', '검진'].includes(status)) {
-            if (isMorning && data.earned === 1 && !data.manualEarned) {
-                data.earned = 0;
-            }
+            if (isMorning && data.earned === 1 && !data.manualEarned) data.earned = 0;
         } else {
-            if (isMorning && data.earned === 0 && !data.resetByUser) {
-                data.earned = 1;
-            }
+            if (isMorning && data.earned === 0 && !data.resetByUser) data.earned = 1;
         }
         saveData();
     }
 
     function toggleOffStatus() {
         const { data, dayNum } = getSelectedDayData();
-        
-        if (data.status === '휴근') {
-            data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
-        }
-
-        const nextStatus = data.status === '휴무' ? '검진' : '휴무';
-        data.status = nextStatus;
+        if (data.status === '휴근') data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
+        data.status = data.status === '휴무' ? '검진' : '휴무';
 
         const shift = getShiftForDay(dayNum, userMonthData);
-        if (shift && shift.includes("모닝") && data.earned === 1 && !data.manualEarned) {
-            data.earned = 0;
-        }
+        if (shift && shift.includes("모닝") && data.earned === 1 && !data.manualEarned) data.earned = 0;
         saveData();
     }
 
@@ -727,21 +694,15 @@
         const cycle = ['근무', '남', '북', '휴근'];
         let idx = cycle.indexOf(data.status);
 
-        if (data.status === '휴근') {
-            data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
-        }
+        if (data.status === '휴근') data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
 
         let next = cycle[(idx + 1) % cycle.length];
         data.status = next;
 
-        if (next === '휴근') {
-            data.overtime = (data.overtime || 0) + 8.0;
-        }
+        if (next === '휴근') data.overtime = (data.overtime || 0) + 8.0;
 
         const shift = getShiftForDay(dayNum, userMonthData);
-        if (shift && shift.includes("모닝") && data.earned === 0 && !data.resetByUser) {
-            data.earned = 1;
-        }
+        if (shift && shift.includes("모닝") && data.earned === 0 && !data.resetByUser) data.earned = 1;
         saveData();
     }
 
