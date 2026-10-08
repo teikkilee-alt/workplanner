@@ -48,16 +48,14 @@
 
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
         
-        /* 완벽한 수평 정렬을 위한 4행 고정 레이아웃 */
         .day-cell { height: 84px; border-radius: 6px; border: 0.5px solid #E0E0E0; padding: 0; display: flex; flex-direction: column; justify-content: space-between; align-items: center; cursor: pointer; font-size: 11px; position: relative; box-sizing: border-box; background: white; overflow: hidden; }
         .day-cell.selected { border: 2.5px solid #E65100 !important; }
         .day-cell.other-month { opacity: 0.35; }
 
         .cell-row { width: 100%; text-align: center; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
         
-        /* 날짜 시인성 개선 적용 */
         .date-row { height: 20px; font-size: 13px; line-height: 20px; background: rgba(0, 0, 0, 0.05); border-bottom: 1px solid rgba(0, 0, 0, 0.08); width: 100%; }
-        .holiday-row { height: 14px; font-size: 8px; line-height: 14px; font-weight: bold; }
+        .holiday-row { height: 14px; font-size: 9px; line-height: 14px; font-weight: bold; }
         .ticket-row { height: 14px; font-size: 9px; line-height: 14px; }
         .overtime-row { height: 14px; font-size: 10px; line-height: 14px; font-weight: bold; margin-bottom: 2px; }
 
@@ -116,7 +114,7 @@
 
             <div class="month-picker">
                 <button onclick="changeMonth(-1)">◀</button>
-                <h3 id="current-month-text">2026년 9월</h3>
+                <h3 id="current-month-text">2026년 10월</h3>
                 <button onclick="changeMonth(1)">▶</button>
             </div>
 
@@ -224,7 +222,6 @@
     let userMonthData = {};
     let allMonthsData = {};
 
-    // 기기/브라우저별 고유 세션 ID 생성 (접속자 수 실시간 집계용)
     let sessionId = sessionStorage.getItem('app_session_id');
     if (!sessionId) {
         sessionId = 'sess_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
@@ -247,7 +244,6 @@
         }
     });
 
-    // 실시간 접속자 감지 및 출석 신호(Heartbeat) 함수
     function startPresenceTracking() {
         if (!currentUser) return;
 
@@ -261,9 +257,8 @@
 
         updatePresence();
         if (presenceInterval) clearInterval(presenceInterval);
-        presenceInterval = setInterval(updatePresence, 60000); // 1분마다 신호 갱신
+        presenceInterval = setInterval(updatePresence, 60000);
 
-        // Firestore 실시간 리스너로 접속 인원 계산 (최근 3분 이내 활동 세션)
         db.collection('presence').onSnapshot(snapshot => {
             const now = Date.now();
             let activeCount = 0;
@@ -281,7 +276,6 @@
         });
     }
 
-    // 대한민국 공휴일 및 대체공휴일 판단 함수
     function getKoreanHoliday(year, month, day) {
         const m = month + 1;
         const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -451,31 +445,8 @@
         for(let d=1; d<=totalDays; d++) {
             let shift = getShiftForDay(d, mData);
             const isMorning = shift && shift.includes("모닝");
-            const dateKey = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const dateKey = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;              if(!mData.days[dateKey]) {                 mData.days[dateKey] = { earned: isMorning ? 1 : 0, used: 0, status: '근무', overtime: 0, memo: '' };             } else {                 const day = mData.days[dateKey];                 if (!isMorning) {                     if (day.earned === 1 && !day.manualEarned) day.earned = 0;                 } else {                     const isNonWork = ['휴무', '연차', '검진'].includes(day.status);                     if (isNonWork) {                         if (day.earned === 1 && !day.manualEarned) day.earned = 0;                     } else if (day.earned === 0 && !day.resetByUser && !day.manualEarned) {                         day.earned = 1;                     }                 }             }         }     }      function createCellElement(y, m, d, isOtherMonth) {         const monthKey = `${y}_${m}`;         const targetMonthData = allMonthsData[monthKey] \vert{}\vert{} getDefaultMonthData();         const dateKey = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 
-            if(!mData.days[dateKey]) {
-                mData.days[dateKey] = { earned: isMorning ? 1 : 0, used: 0, status: '근무', overtime: 0, memo: '' };
-            } else {
-                const day = mData.days[dateKey];
-                if (!isMorning) {
-                    if (day.earned === 1 && !day.manualEarned) day.earned = 0;
-                } else {
-                    const isNonWork = ['휴무', '연차', '검진'].includes(day.status);
-                    if (isNonWork) {
-                        if (day.earned === 1 && !day.manualEarned) day.earned = 0;
-                    } else if (day.earned === 0 && !day.resetByUser && !day.manualEarned) {
-                        day.earned = 1;
-                    }
-                }
-            }
-        }
-    }
-
-    function createCellElement(y, m, d, isOtherMonth) {
-        const monthKey = `${y}_${m}`;
-        const targetMonthData = allMonthsData[monthKey] || getDefaultMonthData();
-        const dateKey = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        
         let dayData = (targetMonthData.days && targetMonthData.days[dateKey]);
         let shift = getShiftForDay(d, targetMonthData);
 
@@ -502,310 +473,4 @@
         let statusText = '';
         if (dayData.status === '남') statusText = `<span style="color:#1976D2; font-weight:bold;"> (남)</span>`;
         else if (dayData.status === '북') statusText = `<span style="color:#6A1B9A; font-weight:bold;"> (북)</span>`;
-        else if (dayData.status === '휴근') statusText = `<span style="color:#E65100; font-weight:bold;"> (휴근)</span>`;
-        else if (dayData.status === '검진') statusText = `<span style="color:#2E7D32; font-weight:bold;"> (검진)</span>`;
-
-        let memoIcon = dayData.memo ? `<span style="color:#2E7D32; font-weight:bold;"> ✔</span>` : '';
-
-        // 공휴일 행
-        let holidayHTML = holidayName 
-            ? `<span style="color:#D32F2F;">${holidayName}</span>` 
-            : '&nbsp;';
-
-        // 식권 행
-        let earnedUsedHTML = '&nbsp;';
-        if (dayData.earned > 0 || dayData.used > 0) {
-            let earnedStr = dayData.earned > 0 ? `<span style="color:#1976D2; font-weight:bold;">+${dayData.earned}</span>` : '';
-            let usedStr = dayData.used > 0 ? `<span style="color:#D32F2F; font-weight:bold;">-${dayData.used}</span>` : '';
-            earnedUsedHTML = `${earnedStr} ${usedStr}`.trim();
-        }
-
-        // 연장근무 행
-        let overtimeHTML = dayData.overtime > 0 ? `${dayData.overtime}h` : '&nbsp;';
-
-        // 시인성이 개선된 날짜 4행 레이아웃
-        cell.innerHTML = `
-            <div class="cell-row date-row" style="color:${dateColor}; font-weight:bold;">
-                ${d}${statusText}${memoIcon}
-            </div>
-            <div class="cell-row holiday-row">
-                ${holidayHTML}
-            </div>
-            <div class="cell-row ticket-row">
-                ${earnedUsedHTML}
-            </div>
-            <div class="cell-row overtime-row">
-                ${overtimeHTML}
-            </div>
-        `;
-
-        cell.onclick = () => {
-            if (isOtherMonth) {
-                currentYear = y; currentMonth = m; selectedDay = d; loadData();
-            } else {
-                if (selectedDay === d) openMemoModal(dayData.memo || '');
-                else { selectedDay = d; renderCalendar(); }
-            }
-        };
-
-        return cell;
-    }
-
-    function renderCalendar() {
-        document.getElementById('current-month-text').innerText = `${currentYear}년 ${currentMonth + 1}월`;
-        const grid = document.getElementById('calendar-grid');
-        grid.innerHTML = '';
-
-        let prevYear = currentYear, prevMonth = currentMonth - 1;
-        if (prevMonth < 0) { prevMonth = 11; prevYear--; }
-
-        let nextYear = currentYear, nextMonth = currentMonth + 1;
-        if (nextMonth > 11) { nextMonth = 0; nextYear++; }
-
-        const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-        const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
-        const prevMonthTotalDays = new Date(currentYear, prevMonth + 1, 0).getDate();
-
-        let totalEarned = 0, totalUsed = 0, totalOvertime = 0, offDays = 0, remainingWorkDays = 0;
-        const today = new Date();
-        const isCurrentMonth = (today.getFullYear() === currentYear && today.getMonth() === currentMonth);
-
-        for(let i=0; i<firstDay; i++) {
-            const pDay = prevMonthTotalDays - (firstDay - 1 - i);
-            grid.appendChild(createCellElement(prevYear, prevMonth, pDay, true));
-        }
-
-        for(let d=1; d<=totalDays; d++) {
-            const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            const dayData = (userMonthData.days && userMonthData.days[dateKey]) || { earned:0, used:0, status:'근무', overtime:0, memo:'' };
-
-            totalEarned += dayData.earned || 0;
-            totalUsed += dayData.used || 0;
-            totalOvertime += dayData.overtime || 0;
-            if(dayData.status === '휴무') offDays++;
-
-            if ((isCurrentMonth && d >= today.getDate()) || (!isCurrentMonth && currentYear >= today.getFullYear() && currentMonth > today.getMonth())) {
-                if(!['휴무', '검진', '연차'].includes(dayData.status)) remainingWorkDays++;
-            }
-
-            grid.appendChild(createCellElement(currentYear, currentMonth, d, false));
-        }
-
-        const totalRendered = firstDay + totalDays;
-        const nextDaysCount = (7 - (totalRendered % 7)) % 7;
-        for(let n=1; n<=nextDaysCount; n++) {
-            grid.appendChild(createCellElement(nextYear, nextMonth, n, true));
-        }
-
-        const baseTickets = userMonthData.baseTicketCount || 9;
-        const finalTickets = baseTickets + totalEarned - totalUsed;
-        
-        let ticketSub = '';
-        if(totalEarned > 0 && totalUsed > 0) ticketSub = ` (+${totalEarned} / -${totalUsed})`;
-        else if(totalEarned > 0) ticketSub = ` (+${totalEarned})`;
-        else if(totalUsed > 0) ticketSub = ` (-${totalUsed})`;
-
-        document.getElementById('summary-tickets').innerText = `${finalTickets} 개${ticketSub}`;
-        document.getElementById('summary-off').innerText = `총 휴무 일수 : ${offDays}일`;
-        document.getElementById('summary-overtime').innerText = `${totalOvertime} h (${remainingWorkDays}일 남음)`;
-
-        renderDetail();
-    }
-
-    function renderDetail() {
-        const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
-        const dayData = (userMonthData.days && userMonthData.days[dateKey]) || { earned:0, used:0, status:'근무', overtime:0, memo:'' };
-        
-        const holidayName = getKoreanHoliday(currentYear, currentMonth, selectedDay);
-        const holidayStr = holidayName ? ` (${holidayName})` : '';
-
-        document.getElementById('selected-date-text').innerText = `📝 ${currentMonth + 1}월 ${selectedDay}일${holidayStr} 선택됨`;
-        document.getElementById('detail-overtime').innerText = `⏱️ 연장근무: ${dayData.overtime || 0}시간`;
-        document.getElementById('detail-status').innerText = `📌 근무 상태: ${dayData.status || '근무'}`;
-        document.getElementById('detail-memo').innerText = dayData.memo ? `📝 메모: ${dayData.memo}` : '';
-        
-        if(!dayData.earned && !dayData.used) {
-            document.getElementById('detail-ticket').innerText = `🎫 식권: 내역 없음`;
-        } else {
-            let tTxt = `🎫 식권: `;
-            if(dayData.earned > 0) tTxt += `${dayData.earned}개 획득 `;
-            if(dayData.used > 0) tTxt += `${dayData.used}개 사용`;
-            document.getElementById('detail-ticket').innerText = tTxt;
-        }
-        
-        const offBtn = document.getElementById('btn-status-off');
-        offBtn.innerText = dayData.status === '검진' ? '검진' : '휴무';
-        offBtn.style.background = dayData.status === '검진' ? '#388E3C' : (dayData.status === '휴무' ? '#757575' : '#E0E0E0');
-        offBtn.style.color = (dayData.status === '휴무' || dayData.status === '검진') ? 'white' : 'black';
-
-        const workBtn = document.getElementById('btn-status-work');
-        let wText = '근무';
-        if(dayData.status === '남') { wText = '근무(남)'; workBtn.style.background = '#1565C0'; workBtn.style.color = 'white'; }
-        else if(dayData.status === '북') { wText = '근무(북)'; workBtn.style.background = '#6A1B9A'; workBtn.style.color = 'white'; }
-        else if(dayData.status === '휴근') { wText = '근무(휴근)'; workBtn.style.background = '#E65100'; workBtn.style.color = 'white'; }
-        else if(dayData.status === '근무') { wText = '근무'; workBtn.style.background = '#1E88E5'; workBtn.style.color = 'white'; }
-        else { wText = '근무'; workBtn.style.background = '#BBDEFB'; workBtn.style.color = 'black'; }
-        workBtn.innerText = wText;
-
-        const resetBox = document.getElementById('reset-ticket-box');
-        if((dayData.earned || 0) > 0 || (dayData.used || 0) > 0) {
-            resetBox.style.display = 'block';
-        } else {
-            resetBox.style.display = 'none';
-        }
-    }
-
-    function getSelectedDayData() {
-        if(!userMonthData.days) userMonthData.days = {};
-        const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
-        if(!userMonthData.days[dateKey]) {
-            userMonthData.days[dateKey] = { earned:0, used:0, status:'근무', overtime:0, memo:'' };
-        }
-        return { data: userMonthData.days[dateKey], key: dateKey, dayNum: selectedDay };
-    }
-
-    function addTicket(val) {
-        const { data } = getSelectedDayData();
-        if(val > 0) {
-            data.earned = (data.earned || 0) + val;
-            data.manualEarned = true;
-        } else {
-            data.used = Math.max(0, (data.used || 0) - val);
-        }
-        saveData();
-    }
-
-    function resetDayTicket() {
-        const { data } = getSelectedDayData();
-        data.earned = 0;
-        data.used = 0;
-        data.resetByUser = true;
-        data.manualEarned = false;
-        saveData();
-    }
-
-    function addOvertime(val) {
-        const { data } = getSelectedDayData();
-        data.overtime = Math.max(0, (data.overtime || 0) + val);
-        saveData();
-    }
-
-    function setStatus(status) {
-        const { data, dayNum } = getSelectedDayData();
-        if (data.status === '휴근' && status !== '휴근') data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
-        data.status = status;
-        
-        const shift = getShiftForDay(dayNum, userMonthData);
-        const isMorning = shift && shift.includes("모닝");
-
-        if (['휴무', '연차', '검진'].includes(status)) {
-            if (isMorning && data.earned === 1 && !data.manualEarned) data.earned = 0;
-        } else {
-            if (isMorning && data.earned === 0 && !data.resetByUser) data.earned = 1;
-        }
-        saveData();
-    }
-
-    function toggleOffStatus() {
-        const { data, dayNum } = getSelectedDayData();
-        if (data.status === '휴근') data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
-        data.status = data.status === '휴무' ? '검진' : '휴무';
-
-        const shift = getShiftForDay(dayNum, userMonthData);
-        if (shift && shift.includes("모닝") && data.earned === 1 && !data.manualEarned) data.earned = 0;
-        saveData();
-    }
-
-    function cycleWorkStatus() {
-        const { data, dayNum } = getSelectedDayData();
-        const cycle = ['근무', '남', '북', '휴근'];
-        let idx = cycle.indexOf(data.status);
-
-        if (data.status === '휴근') data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
-
-        let next = cycle[(idx + 1) % cycle.length];
-        data.status = next;
-
-        if (next === '휴근') data.overtime = (data.overtime || 0) + 8.0;
-
-        const shift = getShiftForDay(dayNum, userMonthData);
-        if (shift && shift.includes("모닝") && data.earned === 0 && !data.resetByUser) data.earned = 1;
-        saveData();
-    }
-
-    function changeMonth(delta) {
-        currentMonth += delta;
-        if(currentMonth < 0) { currentMonth = 11; currentYear--; }
-        if(currentMonth > 11) { currentMonth = 0; currentYear++; }
-        selectedDay = 1;
-        loadData();
-    }
-
-    function openMemoModal(memo) {
-        document.getElementById('memo-title').innerText = `📝 ${currentMonth + 1}월 ${selectedDay}일 메모`;
-        document.getElementById('memo-input').value = memo;
-        document.getElementById('memo-modal').style.display = 'flex';
-    }
-    function closeMemoModal() { document.getElementById('memo-modal').style.display = 'none'; }
-    function saveMemo() {
-        const { data } = getSelectedDayData();
-        data.memo = document.getElementById('memo-input').value;
-        closeMemoModal();
-        saveData();
-    }
-    function deleteMemo() {
-        const { data } = getSelectedDayData();
-        data.memo = '';
-        closeMemoModal();
-        saveData();
-    }
-
-    function renderSettings() {
-        document.getElementById('setting-ticket-label').innerText = `🎫 ${currentYear}년 ${currentMonth + 1}월 기본 식권 수량`;
-        document.getElementById('base-ticket-input').value = userMonthData.baseTicketCount || 9;
-
-        if (currentUser) {
-            document.getElementById('user-email-display').innerText = currentUser.email || '이메일 정보 없음';
-        }
-
-        const container = document.getElementById('shift-settings-container');
-        container.innerHTML = '';
-
-        const shifts = [
-            { key: 'shift1to10', label: '1일 ~ 10일' },
-            { key: 'shift11to20', label: '11일 ~ 20일' },
-            { key: 'shift21to30', label: '21일 ~ 30일' },
-            { key: 'shift31', label: '31일 (개별)' }
-        ];
-
-        shifts.forEach(s => {
-            const div = document.createElement('div');
-            div.className = 'shift-select-row';
-            div.innerHTML = `
-                <div style="font-size:13px; font-weight:bold; color:#666;">${s.label}</div>
-                <div class="shift-options">
-                    ${['모닝 🌅', '상근 💼', '데이 ⏰', '야간 🌙'].map(opt => `
-                        <div class="shift-opt ${userMonthData[s.key] === opt ? 'selected' : ''}" 
-                             style="background: ${userMonthData[s.key] === opt ? getShiftColor(opt) : '#F5F5F5'}"
-                             onclick="updateShiftPattern('${s.key}', '${opt}')">${opt.split(' ')[0]}</div>
-                    `).join('')}
-                </div>
-            `;
-            container.appendChild(div);
-        });
-    }
-
-    function saveBaseTickets() {
-        userMonthData.baseTicketCount = parseInt(document.getElementById('base-ticket-input').value) || 0;
-        saveData();
-    }
-
-    function updateShiftPattern(key, val) {
-        userMonthData[key] = val;
-        autoApplyMorningTicketsForMonth(currentYear, currentMonth);
-        saveData();
-        renderSettings();
-    }
-</script>
-</body>
-</html>
+        else if (dayData.status === '휴근') statusText = `<span style="color:#E6510
