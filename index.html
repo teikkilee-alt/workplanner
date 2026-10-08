@@ -49,15 +49,17 @@
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
         
         /* 완벽한 수평 정렬을 위한 4행 고정 레이아웃 */
-        .day-cell { height: 80px; border-radius: 6px; border: 0.5px solid #E0E0E0; padding: 3px 1px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; cursor: pointer; font-size: 11px; position: relative; box-sizing: border-box; background: white; }
+        .day-cell { height: 84px; border-radius: 6px; border: 0.5px solid #E0E0E0; padding: 0; display: flex; flex-direction: column; justify-content: space-between; align-items: center; cursor: pointer; font-size: 11px; position: relative; box-sizing: border-box; background: white; overflow: hidden; }
         .day-cell.selected { border: 2.5px solid #E65100 !important; }
         .day-cell.other-month { opacity: 0.35; }
 
         .cell-row { width: 100%; text-align: center; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-        .date-row { height: 16px; font-size: 11px; line-height: 16px; }
+        
+        /* 날짜 시인성 개선 적용 */
+        .date-row { height: 20px; font-size: 13px; line-height: 20px; background: rgba(0, 0, 0, 0.05); border-bottom: 1px solid rgba(0, 0, 0, 0.08); width: 100%; }
         .holiday-row { height: 14px; font-size: 8px; line-height: 14px; font-weight: bold; }
         .ticket-row { height: 14px; font-size: 9px; line-height: 14px; }
-        .overtime-row { height: 14px; font-size: 10px; line-height: 14px; font-weight: bold; }
+        .overtime-row { height: 14px; font-size: 10px; line-height: 14px; font-weight: bold; margin-bottom: 2px; }
 
         /* Day Details Section */
         .detail-card { background: #F5F5F5; border-radius: 16px; padding: 14px; margin-top: 10px; }
@@ -167,10 +169,14 @@
                 <div id="shift-settings-container"></div>
             </div>
 
-            <!-- 로그인 계정 정보 표시 카드 -->
+            <!-- 로그인 계정 및 실시간 접속자 수 카드 -->
             <div class="setting-card" style="text-align: center; background: #F5F5F5;">
                 <div style="font-size: 12px; color: #666; font-weight: bold; margin-bottom: 4px;">👤 현재 로그인 계정</div>
-                <div id="user-email-display" style="font-size: 14px; font-weight: bold; color: #1976D2;"></div>
+                <div id="user-email-display" style="font-size: 14px; font-weight: bold; color: #1976D2; margin-bottom: 8px;"></div>
+                
+                <div style="font-size: 12px; color: #2E7D32; background: #E8F5E9; padding: 8px; border-radius: 8px; font-weight: bold; display: inline-block; border: 1px solid #A5D6A7;">
+                    🟢 현재 접속 중인 인원: <span id="active-users-count">1</span>명
+                </div>
             </div>
 
             <button onclick="logout()" style="width: 100%; padding: 12px; background: #D32F2F; color: white; border: none; border-radius: 8px; margin-top: 10px; font-weight: bold;">로그아웃</button>
@@ -218,75 +224,96 @@
     let userMonthData = {};
     let allMonthsData = {};
 
+    // 기기/브라우저별 고유 세션 ID 생성 (접속자 수 실시간 집계용)
+    let sessionId = sessionStorage.getItem('app_session_id');
+    if (!sessionId) {
+        sessionId = 'sess_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+        sessionStorage.setItem('app_session_id', sessionId);
+    }
+    let presenceInterval = null;
+
     auth.onAuthStateChanged(user => {
         if (user) {
             currentUser = user;
             document.getElementById('auth-screen').style.display = 'none';
             document.getElementById('main-screen').style.display = 'block';
             loadData();
+            startPresenceTracking();
         } else {
             currentUser = null;
+            if (presenceInterval) clearInterval(presenceInterval);
             document.getElementById('auth-screen').style.display = 'block';
             document.getElementById('main-screen').style.display = 'none';
         }
     });
 
+    // 실시간 접속자 감지 및 출석 신호(Heartbeat) 함수
+    function startPresenceTracking() {
+        if (!currentUser) return;
+
+        const updatePresence = () => {
+            db.collection('presence').doc(sessionId).set({
+                uid: currentUser.uid,
+                email: currentUser.email,
+                lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        };
+
+        updatePresence();
+        if (presenceInterval) clearInterval(presenceInterval);
+        presenceInterval = setInterval(updatePresence, 60000); // 1분마다 신호 갱신
+
+        // Firestore 실시간 리스너로 접속 인원 계산 (최근 3분 이내 활동 세션)
+        db.collection('presence').onSnapshot(snapshot => {
+            const now = Date.now();
+            let activeCount = 0;
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.lastSeen && data.lastSeen.toDate) {
+                    const diffMinutes = (now - data.lastSeen.toDate().getTime()) / 1000 / 60;
+                    if (diffMinutes < 3) {
+                        activeCount++;
+                    }
+                }
+            });
+            const countEl = document.getElementById('active-users-count');
+            if (countEl) countEl.innerText = activeCount;
+        });
+    }
+
     // 대한민국 공휴일 및 대체공휴일 판단 함수
     function getKoreanHoliday(year, month, day) {
-        const m = month + 1; // 1~12월
+        const m = month + 1;
         const dateStr = `${year}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const monthDay = `${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-        // 1. 양력 고정 공휴일
         const fixedHolidays = {
-            "01-01": "신정",
-            "03-01": "삼일절",
-            "05-05": "어린이날",
-            "06-06": "현충일",
-            "08-15": "광복절",
-            "10-03": "개천절",
-            "10-09": "한글날",
-            "12-25": "성탄절"
+            "01-01": "신정", "03-01": "삼일절", "05-05": "어린이날", "06-06": "현충일",
+            "08-15": "광복절", "10-03": "개천절", "10-09": "한글날", "12-25": "성탄절"
         };
 
-        // 2. 연도별 음력 명절, 대체공휴일 및 기타 지정 공휴일 (2024~2028년)
         const holidayMap = {
-            // 2024년
             "2024-02-09": "설날 연휴", "2024-02-10": "설날", "2024-02-11": "설날 연휴", "2024-02-12": "대체공휴일",
-            "2024-04-10": "국회의원 선거",
-            "2024-05-06": "대체공휴일",
-            "2024-05-15": "부처님오신날",
-            "2024-09-16": "추석 연휴", "2024-09-17": "추석", "2024-09-18": "추석 연휴",
-            "2024-10-01": "임시공휴일",
+            "2024-04-10": "국회의원 선거", "2024-05-06": "대체공휴일", "2024-05-15": "부처님오신날",
+            "2024-09-16": "추석 연휴", "2024-09-17": "추석", "2024-09-18": "추석 연휴", "2024-10-01": "임시공휴일",
 
-            // 2025년
             "2025-01-28": "설날 연휴", "2025-01-29": "설날", "2025-01-30": "설날 연휴", "2025-01-31": "임시공휴일",
-            "2025-03-03": "대체공휴일",
-            "2025-05-05": "어린이날/부처님오신날", "2025-05-06": "대체공휴일",
+            "2025-03-03": "대체공휴일", "2025-05-05": "어린이날/부처님오신날", "2025-05-06": "대체공휴일",
             "2025-10-05": "추석 연휴", "2025-10-06": "추석", "2025-10-07": "추석 연휴", "2025-10-08": "대체공휴일",
 
-            // 2026년
             "2026-02-16": "설날 연휴", "2026-02-17": "설날", "2026-02-18": "설날 연휴",
-            "2026-03-02": "대체공휴일",
-            "2026-05-24": "부처님오신날", "2026-05-25": "대체공휴일",
-            "2026-06-03": "지방선거",
-            "2026-08-17": "대체공휴일",
+            "2026-03-02": "대체공휴일", "2026-05-24": "부처님오신날", "2026-05-25": "대체공휴일",
+            "2026-06-03": "지방선거", "2026-08-17": "대체공휴일",
             "2026-09-24": "추석 연휴", "2026-09-25": "추석", "2026-09-26": "추석 연휴", "2026-09-28": "대체공휴일",
             "2026-10-05": "대체공휴일",
 
-            // 2027년
             "2027-02-06": "설날 연휴", "2027-02-07": "설날", "2027-02-08": "설날 연휴", "2027-02-09": "대체공휴일",
-            "2027-03-03": "대통령 선거",
-            "2027-05-13": "부처님오신날",
-            "2027-06-07": "대체공휴일",
-            "2027-08-16": "대체공휴일",
-            "2027-09-14": "추석 연휴", "2027-09-15": "추석", "2027-09-16": "추석 연휴",
+            "2027-03-03": "대통령 선거", "2027-05-13": "부처님오신날", "2027-06-07": "대체공휴일",
+            "2027-08-16": "대체공휴일", "2027-09-14": "추석 연휴", "2027-09-15": "추석", "2027-09-16": "추석 연휴",
             "2027-10-04": "대체공휴일", "2027-10-11": "대체공휴일",
 
-            // 2028년
             "2028-01-26": "설날 연휴", "2028-01-27": "설날", "2028-01-28": "설날 연휴",
-            "2028-05-02": "부처님오신날",
-            "2028-05-29": "대체공휴일",
+            "2028-05-02": "부처님오신날", "2028-05-29": "대체공휴일",
             "2028-10-02": "추석 연휴", "2028-10-03": "추석/개천절", "2028-10-04": "추석 연휴", "2028-10-05": "대체공휴일", "2028-10-06": "대체공휴일",
             "2028-12-26": "대체공휴일"
         };
@@ -469,8 +496,8 @@
         const holidayName = getKoreanHoliday(y, m, d);
 
         let dateColor = 'black';
-        if (dayOfWeek === 0 || holidayName) dateColor = '#D32F2F'; // 일요일 및 공휴일 빨간색
-        else if (dayOfWeek === 6) dateColor = '#1976D2'; // 토요일 파란색
+        if (dayOfWeek === 0 || holidayName) dateColor = '#D32F2F';
+        else if (dayOfWeek === 6) dateColor = '#1976D2';
 
         let statusText = '';
         if (dayData.status === '남') statusText = `<span style="color:#1976D2; font-weight:bold;"> (남)</span>`;
@@ -480,7 +507,7 @@
 
         let memoIcon = dayData.memo ? `<span style="color:#2E7D32; font-weight:bold;"> ✔</span>` : '';
 
-        // 공휴일 행 (공휴일이 없는 날도 동일한 높이를 보장하기 위해 &nbsp; 처리)
+        // 공휴일 행
         let holidayHTML = holidayName 
             ? `<span style="color:#D32F2F;">${holidayName}</span>` 
             : '&nbsp;';
@@ -496,7 +523,7 @@
         // 연장근무 행
         let overtimeHTML = dayData.overtime > 0 ? `${dayData.overtime}h` : '&nbsp;';
 
-        // 고정 4행 레이아웃 적용
+        // 시인성이 개선된 날짜 4행 레이아웃
         cell.innerHTML = `
             <div class="cell-row date-row" style="color:${dateColor}; font-weight:bold;">
                 ${d}${statusText}${memoIcon}
