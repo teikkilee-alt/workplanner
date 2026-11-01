@@ -149,4 +149,18 @@
                     <div id="detail-ticket" style="font-weight:bold;">🎫 식권: 내역 없음</div>
                 </div>
 
-                <div style="font-size: 12px; font-weight: bold; margin-bottom:
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 4px;">• 근무 상태 변경:</div>
+                <div class="status-row">
+                    <button id="btn-status-off" class="status-btn" style="background: #E0E0E0;" onclick="toggleOffStatus()">휴무</button>
+                    <button id="btn-status-annual" class="status-btn" style="background: #FFF59D;" onclick="setStatus('연차')">연차</button>
+                    <button id="btn-status-work" class="status-btn" style="background: #BBDEFB;" onclick="cycleWorkStatus()">근무</button>
+                </div>
+                <div id="reset-ticket-box" style="margin-top: 8px; display: none;">
+                    <button onclick="resetDayTicket()" style="width: 100%; padding: 8px; background: #757575; color: white; border: none; border-radius: 6px; font-size: 12px;">당일 식권 기록 초기화 🔄</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 설정 탭 -->
+        <div id="settings-page" class="page">
+            <h
