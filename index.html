@@ -83,6 +83,13 @@
         .shift-options { display: flex; gap: 4px; margin-top: 6px; }
         .shift-opt { flex: 1; text-align: center; padding: 8px 0; border: 1px solid #E0E0E0; border-radius: 8px; font-size: 11px; cursor: pointer; background: #F5F5F5; font-weight: bold; }
         .shift-opt.selected { border: 2px solid #1E88E5; }
+
+        /* Ticket Type Switch (기본식권 / 공항식권) */
+        .ticket-type-label { font-size: 11px; font-weight: bold; color: #1976D2; white-space: nowrap; }
+        .ticket-switch { width: 48px; height: 24px; background: #90CAF9; border-radius: 12px; position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.2s; }
+        .ticket-switch.airport { background: #AB47BC; }
+        .ticket-switch-knob { width: 20px; height: 20px; background: white; border-radius: 50%; position: absolute; top: 2px; left: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.3); transition: left 0.2s; }
+        .ticket-switch.airport .ticket-switch-knob { left: 26px; }
     </style>
 </head>
 <body>
@@ -109,6 +116,11 @@
                 </div>
                 <div style="width: 1px; background: #BDBDBD;"></div>
                 <div class="summary-box">
+                    <div class="summary-title">✈️ 남은 공항식권</div>
+                    <div class="summary-value" id="summary-airport-tickets" style="color: #6A1B9A;">0 개</div>
+                </div>
+                <div style="width: 1px; background: #BDBDBD;"></div>
+                <div class="summary-box">
                     <div class="summary-title">⏱️ 총 연장 근무 시간</div>
                     <div class="summary-value" id="summary-overtime" style="color: #E65100;">0 h</div>
                 </div>
@@ -126,7 +138,15 @@
             <div class="calendar-grid" id="calendar-grid"></div>
 
             <div class="detail-card">
-                <h4 id="selected-date-text">📝 1일 선택됨</h4>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                    <h4 id="selected-date-text" style="flex: 1;">📝 1일 선택됨</h4>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span id="ticket-type-label" class="ticket-type-label">기본식권</span>
+                        <div id="ticket-type-switch" class="ticket-switch" onclick="toggleTicketType()">
+                            <div class="ticket-switch-knob"></div>
+                        </div>
+                    </div>
+                </div>
                 <div class="action-row">
                     <button class="action-btn" onclick="addTicket(1)">식권+1</button>
                     <button class="action-btn red" onclick="addTicket(-1)">식권-1</button>
@@ -138,6 +158,7 @@
                     <div id="detail-overtime" style="color:#E65100; font-weight:bold;">⏱️ 연장근무: 0시간</div>
                     <div id="detail-status" style="font-weight:bold;">📌 근무 상태: 근무</div>
                     <div id="detail-memo" style="color: #2E7D32;"></div>
+                    <div id="detail-tip" style="color: #F57F17;"></div>
                     <div id="detail-ticket" style="font-weight:bold;">🎫 식권: 내역 없음</div>
                 </div>
 
@@ -161,6 +182,14 @@
                 <div style="display: flex; gap: 8px;">
                     <input type="number" id="base-ticket-input" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 6px;">
                     <button onclick="saveBaseTickets()" style="padding: 8px 16px; background: #1E88E5; color: white; border: none; border-radius: 6px; font-weight: bold;">저장</button>
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <h4 id="setting-airport-ticket-label">✈️ 공항식권 기본 수량 설정</h4>
+                <div style="display: flex; gap: 8px;">
+                    <input type="number" id="airport-ticket-input" style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 6px;">
+                    <button onclick="saveAirportBaseTickets()" style="padding: 8px 16px; background: #AB47BC; color: white; border: none; border-radius: 6px; font-weight: bold;">저장</button>
                 </div>
             </div>
 
@@ -194,6 +223,8 @@
     <div class="modal-content">
         <h3 id="memo-title">📝 메모</h3>
         <input type="text" id="memo-input" maxlength="30" placeholder="메모 입력 (30자 이내)">
+        <div style="font-size: 11px; color: #666; font-weight: bold; margin-top: 4px;">💰 팁 받은 금액</div>
+        <input type="number" id="tip-input" placeholder="팁 금액 입력 (원)" min="0">
         <div class="modal-btns">
             <button onclick="deleteMemo()" style="background: none; border: none; color: #D32F2F; cursor: pointer;">삭제</button>
             <button onclick="closeMemoModal()" style="background: none; border: none; color: #666; cursor: pointer;">취소</button>
@@ -223,6 +254,7 @@
 
     let userMonthData = {};
     let allMonthsData = {};
+    let currentTicketType = '기본'; // '기본' (기본식권) 또는 '공항' (공항식권)
 
     // 기기/브라우저별 고유 세션 ID 생성 (접속자 수 실시간 집계용)
     let sessionId = sessionStorage.getItem('app_session_id');
@@ -371,6 +403,7 @@
     function getDefaultMonthData() {
         return {
             baseTicketCount: 9,
+            airportBaseTicketCount: 12,
             shift1to10: "모닝 🌅",
             shift11to20: "상근 💼",
             shift21to30: "데이 ⏰",
@@ -514,10 +547,11 @@
 
         // 식권 행
         let earnedUsedHTML = '&nbsp;';
-        if (dayData.earned > 0 || dayData.used > 0) {
+        if (dayData.earned > 0 || dayData.used > 0 || dayData.airportUsed > 0) {
             let earnedStr = dayData.earned > 0 ? `<span style="color:#1976D2; font-weight:bold;">+${dayData.earned}</span>` : '';
             let usedStr = dayData.used > 0 ? `<span style="color:#D32F2F; font-weight:bold;">-${dayData.used}</span>` : '';
-            earnedUsedHTML = `${earnedStr} ${usedStr}`.trim();
+            let airportStr = dayData.airportUsed > 0 ? `<span style="color:#AB47BC; font-weight:bold;">✈-${dayData.airportUsed}</span>` : '';
+            earnedUsedHTML = `${earnedStr} ${usedStr} ${airportStr}`.trim();
         }
 
         // 연장근무 행
@@ -541,10 +575,10 @@
 
         cell.onclick = () => {
             if (isOtherMonth) {
-                currentYear = y; currentMonth = m; selectedDay = d; loadData();
+                currentYear = y; currentMonth = m; selectedDay = d; currentTicketType = '기본'; loadData();
             } else {
-                if (selectedDay === d) openMemoModal(dayData.memo || '');
-                else { selectedDay = d; renderCalendar(); }
+                if (selectedDay === d) openMemoModal(dayData.memo || '', dayData.tip || 0);
+                else { selectedDay = d; currentTicketType = '기본'; renderCalendar(); }
             }
         };
 
@@ -566,7 +600,7 @@
         const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
         const prevMonthTotalDays = new Date(currentYear, prevMonth + 1, 0).getDate();
 
-        let totalEarned = 0, totalUsed = 0, totalOvertime = 0, offDays = 0, remainingWorkDays = 0;
+        let totalEarned = 0, totalUsed = 0, totalAirportUsed = 0, totalOvertime = 0, offDays = 0, remainingWorkDays = 0;
         const today = new Date();
         const isCurrentMonth = (today.getFullYear() === currentYear && today.getMonth() === currentMonth);
 
@@ -581,6 +615,7 @@
 
             totalEarned += dayData.earned || 0;
             totalUsed += dayData.used || 0;
+            totalAirportUsed += dayData.airportUsed || 0;
             totalOvertime += dayData.overtime || 0;
             if(dayData.status === '휴무') offDays++;
 
@@ -607,6 +642,11 @@
 
         document.getElementById('summary-tickets').innerText = `${finalTickets} 개${ticketSub}`;
         document.getElementById('summary-off').innerText = `총 휴무 일수 : ${offDays}일`;
+
+        const airportBaseTickets = userMonthData.airportBaseTicketCount || 12;
+        const finalAirportTickets = airportBaseTickets - totalAirportUsed;
+        const airportSub = totalAirportUsed > 0 ? ` (-${totalAirportUsed})` : '';
+        document.getElementById('summary-airport-tickets').innerText = `${finalAirportTickets} 개${airportSub}`;
         document.getElementById('summary-overtime').innerText = `${totalOvertime} h (${remainingWorkDays}일 남음)`;
 
         renderDetail();
@@ -623,15 +663,19 @@
         document.getElementById('detail-overtime').innerText = `⏱️ 연장근무: ${dayData.overtime || 0}시간`;
         document.getElementById('detail-status').innerText = `📌 근무 상태: ${dayData.status || '근무'}`;
         document.getElementById('detail-memo').innerText = dayData.memo ? `📝 메모: ${dayData.memo}` : '';
+        document.getElementById('detail-tip').innerText = dayData.tip ? `💰 팁: ${Number(dayData.tip).toLocaleString()}원` : '';
         
-        if(!dayData.earned && !dayData.used) {
+        if(!dayData.earned && !dayData.used && !dayData.airportUsed) {
             document.getElementById('detail-ticket').innerText = `🎫 식권: 내역 없음`;
         } else {
             let tTxt = `🎫 식권: `;
             if(dayData.earned > 0) tTxt += `${dayData.earned}개 획득 `;
-            if(dayData.used > 0) tTxt += `${dayData.used}개 사용`;
+            if(dayData.used > 0) tTxt += `${dayData.used}개 사용 `;
+            if(dayData.airportUsed > 0) tTxt += `(공항 ${dayData.airportUsed}개 사용)`;
             document.getElementById('detail-ticket').innerText = tTxt;
         }
+
+        renderTicketSwitch();
         
         const offBtn = document.getElementById('btn-status-off');
         offBtn.innerText = dayData.status === '검진' ? '검진' : '휴무';
@@ -648,7 +692,7 @@
         workBtn.innerText = wText;
 
         const resetBox = document.getElementById('reset-ticket-box');
-        if((dayData.earned || 0) > 0 || (dayData.used || 0) > 0) {
+        if((dayData.earned || 0) > 0 || (dayData.used || 0) > 0 || (dayData.airportUsed || 0) > 0) {
             resetBox.style.display = 'block';
         } else {
             resetBox.style.display = 'none';
@@ -666,11 +710,21 @@
 
     function addTicket(val) {
         const { data } = getSelectedDayData();
-        if(val > 0) {
-            data.earned = (data.earned || 0) + val;
-            data.manualEarned = true;
+
+        if (currentTicketType === '공항') {
+            if (val > 0) {
+                alert('공항식권은 추가로 지급되지 않습니다.');
+                return;
+            } else {
+                data.airportUsed = Math.max(0, (data.airportUsed || 0) - val);
+            }
         } else {
-            data.used = Math.max(0, (data.used || 0) - val);
+            if(val > 0) {
+                data.earned = (data.earned || 0) + val;
+                data.manualEarned = true;
+            } else {
+                data.used = Math.max(0, (data.used || 0) - val);
+            }
         }
         saveData();
     }
@@ -679,9 +733,30 @@
         const { data } = getSelectedDayData();
         data.earned = 0;
         data.used = 0;
+        data.airportUsed = 0;
         data.resetByUser = true;
         data.manualEarned = false;
         saveData();
+    }
+
+    function toggleTicketType() {
+        currentTicketType = currentTicketType === '기본' ? '공항' : '기본';
+        renderTicketSwitch();
+    }
+
+    function renderTicketSwitch() {
+        const sw = document.getElementById('ticket-type-switch');
+        const label = document.getElementById('ticket-type-label');
+        if (!sw || !label) return;
+        if (currentTicketType === '공항') {
+            sw.classList.add('airport');
+            label.innerText = '공항식권';
+            label.style.color = '#AB47BC';
+        } else {
+            sw.classList.remove('airport');
+            label.innerText = '기본식권';
+            label.style.color = '#1976D2';
+        }
     }
 
     function addOvertime(val) {
@@ -738,18 +813,21 @@
         if(currentMonth < 0) { currentMonth = 11; currentYear--; }
         if(currentMonth > 11) { currentMonth = 0; currentYear++; }
         selectedDay = 1;
+        currentTicketType = '기본';
         loadData();
     }
 
-    function openMemoModal(memo) {
+    function openMemoModal(memo, tip) {
         document.getElementById('memo-title').innerText = `📝 ${currentMonth + 1}월 ${selectedDay}일 메모`;
         document.getElementById('memo-input').value = memo;
+        document.getElementById('tip-input').value = tip ? tip : '';
         document.getElementById('memo-modal').style.display = 'flex';
     }
     function closeMemoModal() { document.getElementById('memo-modal').style.display = 'none'; }
     function saveMemo() {
         const { data } = getSelectedDayData();
         data.memo = document.getElementById('memo-input').value;
+        data.tip = parseInt(document.getElementById('tip-input').value) || 0;
         closeMemoModal();
         saveData();
     }
@@ -763,6 +841,9 @@
     function renderSettings() {
         document.getElementById('setting-ticket-label').innerText = `🎫 ${currentYear}년 ${currentMonth + 1}월 기본 식권 수량`;
         document.getElementById('base-ticket-input').value = userMonthData.baseTicketCount || 9;
+
+        document.getElementById('setting-airport-ticket-label').innerText = `✈️ ${currentYear}년 ${currentMonth + 1}월 공항식권 기본 수량`;
+        document.getElementById('airport-ticket-input').value = userMonthData.airportBaseTicketCount || 12;
 
         if (currentUser) {
             document.getElementById('user-email-display').innerText = currentUser.email || '이메일 정보 없음';
@@ -797,6 +878,11 @@
 
     function saveBaseTickets() {
         userMonthData.baseTicketCount = parseInt(document.getElementById('base-ticket-input').value) || 0;
+        saveData();
+    }
+
+    function saveAirportBaseTickets() {
+        userMonthData.airportBaseTicketCount = parseInt(document.getElementById('airport-ticket-input').value) || 0;
         saveData();
     }
 
