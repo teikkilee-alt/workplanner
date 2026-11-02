@@ -118,6 +118,7 @@
                 <div class="summary-box">
                     <div class="summary-title">✈️ 남은 공항식권</div>
                     <div class="summary-value" id="summary-airport-tickets" style="color: #6A1B9A;">0 개</div>
+                    <div class="summary-sub" id="summary-tip">총 팁 : 0원</div>
                 </div>
                 <div style="width: 1px; background: #BDBDBD;"></div>
                 <div class="summary-box">
@@ -548,10 +549,11 @@
         // 식권 행
         let earnedUsedHTML = '&nbsp;';
         if (dayData.earned > 0 || dayData.used > 0 || dayData.airportUsed > 0) {
-            let earnedStr = dayData.earned > 0 ? `<span style="color:#1976D2; font-weight:bold;">+${dayData.earned}</span>` : '';
-            let usedStr = dayData.used > 0 ? `<span style="color:#D32F2F; font-weight:bold;">-${dayData.used}</span>` : '';
-            let airportStr = dayData.airportUsed > 0 ? `<span style="color:#AB47BC; font-weight:bold;">✈-${dayData.airportUsed}</span>` : '';
-            earnedUsedHTML = `${earnedStr} ${usedStr} ${airportStr}`.trim();
+            let ticketParts = [];
+            if (dayData.earned > 0) ticketParts.push(`<span style="color:#1976D2; font-weight:bold;">+${dayData.earned}</span>`);
+            if (dayData.used > 0) ticketParts.push(`<span style="color:#D32F2F; font-weight:bold;">-${dayData.used}</span>`);
+            if (dayData.airportUsed > 0) ticketParts.push(`<span style="color:#AB47BC; font-weight:bold;">✈${dayData.airportUsed}</span>`);
+            earnedUsedHTML = ticketParts.join('<span style="color:#9E9E9E; padding:0 2px;">/</span>');
         }
 
         // 연장근무 행
@@ -600,7 +602,7 @@
         const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
         const prevMonthTotalDays = new Date(currentYear, prevMonth + 1, 0).getDate();
 
-        let totalEarned = 0, totalUsed = 0, totalAirportUsed = 0, totalOvertime = 0, offDays = 0, remainingWorkDays = 0;
+        let totalEarned = 0, totalUsed = 0, totalAirportUsed = 0, totalTip = 0, totalOvertime = 0, offDays = 0, remainingWorkDays = 0;
         const today = new Date();
         const isCurrentMonth = (today.getFullYear() === currentYear && today.getMonth() === currentMonth);
 
@@ -616,6 +618,7 @@
             totalEarned += dayData.earned || 0;
             totalUsed += dayData.used || 0;
             totalAirportUsed += dayData.airportUsed || 0;
+            totalTip += dayData.tip || 0;
             totalOvertime += dayData.overtime || 0;
             if(dayData.status === '휴무') offDays++;
 
@@ -647,6 +650,7 @@
         const finalAirportTickets = airportBaseTickets - totalAirportUsed;
         const airportSub = totalAirportUsed > 0 ? ` (-${totalAirportUsed})` : '';
         document.getElementById('summary-airport-tickets').innerText = `${finalAirportTickets} 개${airportSub}`;
+        document.getElementById('summary-tip').innerText = `총 팁 : ${totalTip.toLocaleString()}원`;
         document.getElementById('summary-overtime').innerText = `${totalOvertime} h (${remainingWorkDays}일 남음)`;
 
         renderDetail();
