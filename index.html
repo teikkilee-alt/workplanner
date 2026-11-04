@@ -494,7 +494,7 @@
                 if (!isMorning) {
                     if (day.earned === 1 && !day.manualEarned) day.earned = 0;
                 } else {
-                    const isNonWork = ['휴무', '연차', '검진'].includes(day.status);
+                    const isNonWork = ['휴무', '연차', '검진', '휴직'].includes(day.status);
                     if (isNonWork) {
                         if (day.earned === 1 && !day.manualEarned) day.earned = 0;
                     } else if (day.earned === 0 && !day.resetByUser && !day.manualEarned) {
@@ -523,6 +523,7 @@
 
         if (dayData.status === '휴무') cell.style.background = '#E0E0E0';
         else if (dayData.status === '검진') cell.style.background = '#C8E6C9';
+        else if (dayData.status === '휴직') cell.style.background = '#D7CCC8';
         else if (dayData.status === '연차') cell.style.background = '#FFF176';
         else cell.style.background = getShiftColor(shift);
 
@@ -538,6 +539,7 @@
         else if (dayData.status === '북') statusText = `<span style="color:#6A1B9A; font-weight:bold;"> (북)</span>`;
         else if (dayData.status === '휴근') statusText = `<span style="color:#E65100; font-weight:bold;"> (휴근)</span>`;
         else if (dayData.status === '검진') statusText = `<span style="color:#2E7D32; font-weight:bold;"> (검진)</span>`;
+        else if (dayData.status === '휴직') statusText = `<span style="color:#6D4C41; font-weight:bold;"> (휴직)</span>`;
 
         let memoIcon = dayData.memo ? `<span style="color:#2E7D32; font-weight:bold;"> ✔</span>` : '';
 
@@ -623,7 +625,7 @@
             if(dayData.status === '휴무') offDays++;
 
             if ((isCurrentMonth && d >= today.getDate()) || (!isCurrentMonth && currentYear >= today.getFullYear() && currentMonth > today.getMonth())) {
-                if(!['휴무', '검진', '연차'].includes(dayData.status)) remainingWorkDays++;
+                if(!['휴무', '검진', '연차', '휴직'].includes(dayData.status)) remainingWorkDays++;
             }
 
             grid.appendChild(createCellElement(currentYear, currentMonth, d, false));
@@ -682,9 +684,23 @@
         renderTicketSwitch();
         
         const offBtn = document.getElementById('btn-status-off');
-        offBtn.innerText = dayData.status === '검진' ? '검진' : '휴무';
-        offBtn.style.background = dayData.status === '검진' ? '#388E3C' : (dayData.status === '휴무' ? '#757575' : '#E0E0E0');
-        offBtn.style.color = (dayData.status === '휴무' || dayData.status === '검진') ? 'white' : 'black';
+        if (dayData.status === '검진') {
+            offBtn.innerText = '검진';
+            offBtn.style.background = '#388E3C';
+            offBtn.style.color = 'white';
+        } else if (dayData.status === '휴직') {
+            offBtn.innerText = '휴직';
+            offBtn.style.background = '#8D6E63';
+            offBtn.style.color = 'white';
+        } else if (dayData.status === '휴무') {
+            offBtn.innerText = '휴무';
+            offBtn.style.background = '#757575';
+            offBtn.style.color = 'white';
+        } else {
+            offBtn.innerText = '휴무';
+            offBtn.style.background = '#E0E0E0';
+            offBtn.style.color = 'black';
+        }
 
         const workBtn = document.getElementById('btn-status-work');
         let wText = '근무';
@@ -777,7 +793,7 @@
         const shift = getShiftForDay(dayNum, userMonthData);
         const isMorning = shift && shift.includes("모닝");
 
-        if (['휴무', '연차', '검진'].includes(status)) {
+        if (['휴무', '연차', '검진', '휴직'].includes(status)) {
             if (isMorning && data.earned === 1 && !data.manualEarned) data.earned = 0;
         } else {
             if (isMorning && data.earned === 0 && !data.resetByUser) data.earned = 1;
@@ -788,7 +804,10 @@
     function toggleOffStatus() {
         const { data, dayNum } = getSelectedDayData();
         if (data.status === '휴근') data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
-        data.status = data.status === '휴무' ? '검진' : '휴무';
+
+        const offCycle = ['휴무', '검진', '휴직'];
+        const idx = offCycle.indexOf(data.status);
+        data.status = idx === -1 ? '휴무' : offCycle[(idx + 1) % offCycle.length];
 
         const shift = getShiftForDay(dayNum, userMonthData);
         if (shift && shift.includes("모닝") && data.earned === 1 && !data.manualEarned) data.earned = 0;
@@ -838,6 +857,7 @@
     function deleteMemo() {
         const { data } = getSelectedDayData();
         data.memo = '';
+        data.tip = 0;
         closeMemoModal();
         saveData();
     }
