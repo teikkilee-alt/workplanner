@@ -53,6 +53,17 @@
         .day-cell.selected { border: 2.5px solid #E65100 !important; }
         .day-cell.other-month { opacity: 0.35; }
 
+        /* 오늘 날짜 강조 */
+        .day-cell.today { border: 1.5px solid #1976D2; }
+        .day-cell.today .date-row { background: #1976D2 !important; color: #ffffff !important; font-weight: 900; }
+
+        /* 여러 날짜 드래그 선택 */
+        .multi-select-toggle-btn { font-size: 12px; font-weight: bold; padding: 6px 12px; border-radius: 20px; border: 1.5px solid #1976D2; background: white; color: #1976D2; cursor: pointer; }
+        .multi-select-toggle-btn.active { background: #1976D2; color: white; }
+        .day-cell.multi-selected { outline: 3px solid #1E88E5; outline-offset: -3px; }
+        .day-cell.multi-selected::after { content: '✓'; position: absolute; top: 3px; right: 3px; width: 14px; height: 14px; background: #1E88E5; color: white; border-radius: 50%; font-size: 10px; font-weight: 900; display: flex; align-items: center; justify-content: center; line-height: 1; z-index: 2; }
+        .calendar-grid.multi-select-active .day-cell:not(.other-month) { touch-action: none; }
+
         .cell-row { width: 100%; text-align: center; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
         
         /* 날짜 시인성 개선 적용 */
@@ -133,10 +144,29 @@
                 <button onclick="changeMonth(1)">▶</button>
             </div>
 
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 6px;">
+                <button id="multi-select-toggle-btn" class="multi-select-toggle-btn" onclick="toggleMultiSelectMode()">🖐️ 여러 날짜 선택</button>
+            </div>
+
             <div class="calendar-header">
                 <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
             </div>
             <div class="calendar-grid" id="calendar-grid"></div>
+
+            <div id="multi-select-bar" style="display: none; background: #FFF3E0; border: 1px solid #FFB74D; border-radius: 16px; padding: 14px; margin-top: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <strong id="multi-select-count" style="font-size: 14px; color: #E65100;">0일 선택됨</strong>
+                    <button onclick="clearMultiSelect()" style="background: none; border: none; color: #E65100; font-weight: bold; font-size: 12px; cursor: pointer;">선택 해제</button>
+                </div>
+                <div style="font-size: 11px; color: #777; margin-bottom: 8px;">달력에서 날짜를 누르거나 드래그해서 선택한 뒤, 아래 버튼으로 한번에 상태를 바꾸세요.</div>
+                <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;">
+                    <button class="status-btn" style="background: #BBDEFB; height: 36px; font-size: 11px; border-radius: 6px;" onclick="applyBulkStatus('근무')">근무</button>
+                    <button class="status-btn" style="background: #E0E0E0; height: 36px; font-size: 11px; border-radius: 6px;" onclick="applyBulkStatus('휴무')">휴무</button>
+                    <button class="status-btn" style="background: #FFF59D; height: 36px; font-size: 11px; border-radius: 6px;" onclick="applyBulkStatus('연차')">연차</button>
+                    <button class="status-btn" style="background: #C8E6C9; height: 36px; font-size: 11px; border-radius: 6px;" onclick="applyBulkStatus('검진')">검진</button>
+                    <button class="status-btn" style="background: #D7CCC8; height: 36px; font-size: 11px; border-radius: 6px;" onclick="applyBulkStatus('휴직')">휴직</button>
+                </div>
+            </div>
 
             <div class="detail-card">
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
@@ -256,6 +286,23 @@
     let userMonthData = {};
     let allMonthsData = {};
     let currentTicketType = '기본'; // '기본' (기본식권) 또는 '공항' (공항식권)
+
+    // 여러 날짜 드래그 선택 상태
+    let multiSelectMode = false;
+    let selectedDates = new Set();
+    let isDragging = false;
+    let dragAction = 'select';
+
+    document.addEventListener('pointerup', () => { isDragging = false; });
+    document.addEventListener('pointercancel', () => { isDragging = false; });
+    document.getElementById('calendar-grid').addEventListener('pointermove', (e) => {
+        if (!isDragging || !multiSelectMode) return;
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const cellEl = el && el.closest('.day-cell[data-date-key]');
+        if (cellEl && !cellEl.classList.contains('other-month')) {
+            setDateSelection(cellEl.dataset.dateKey, dragAction === 'select');
+        }
+    });
 
     // 기기/브라우저별 고유 세션 ID 생성 (접속자 수 실시간 집계용)
     let sessionId = sessionStorage.getItem('app_session_id');
@@ -518,8 +565,18 @@
             dayData = { earned: isMorning ? 1 : 0, used: 0, status: '근무', overtime: 0, memo: '' };
         }
 
+        const now = new Date();
+        const isToday = (y === now.getFullYear() && m === now.getMonth() && d === now.getDate());
+
         const cell = document.createElement('div');
-        cell.className = `day-cell ${isOtherMonth ? 'other-month' : ''} ${(!isOtherMonth && d === selectedDay) ? 'selected' : ''}`;
+        cell.dataset.dateKey = dateKey;
+        cell.className = [
+            'day-cell',
+            isOtherMonth ? 'other-month' : '',
+            (!multiSelectMode && !isOtherMonth && d === selectedDay) ? 'selected' : '',
+            isToday ? 'today' : '',
+            (multiSelectMode && !isOtherMonth && selectedDates.has(dateKey)) ? 'multi-selected' : ''
+        ].join(' ');
 
         if (dayData.status === '휴무') cell.style.background = '#E0E0E0';
         else if (dayData.status === '검진') cell.style.background = '#C8E6C9';
@@ -577,22 +634,87 @@
             </div>
         `;
 
-        cell.onclick = () => {
-            if (isOtherMonth) {
-                currentYear = y; currentMonth = m; selectedDay = d; currentTicketType = '기본'; loadData();
-            } else {
-                if (selectedDay === d) openMemoModal(dayData.memo || '', dayData.tip || 0);
-                else { selectedDay = d; currentTicketType = '기본'; renderCalendar(); }
-            }
-        };
+        if (multiSelectMode && !isOtherMonth) {
+            cell.onpointerdown = (e) => {
+                e.preventDefault();
+                if (e.target.releasePointerCapture) {
+                    try { e.target.releasePointerCapture(e.pointerId); } catch (err) {}
+                }
+                isDragging = true;
+                dragAction = selectedDates.has(dateKey) ? 'deselect' : 'select';
+                setDateSelection(dateKey, dragAction === 'select');
+            };
+        } else {
+            cell.onclick = () => {
+                if (isOtherMonth) {
+                    currentYear = y; currentMonth = m; selectedDay = d; currentTicketType = '기본'; selectedDates.clear(); loadData();
+                } else {
+                    if (selectedDay === d) openMemoModal(dayData.memo || '', dayData.tip || 0);
+                    else { selectedDay = d; currentTicketType = '기본'; renderCalendar(); }
+                }
+            };
+        }
 
         return cell;
+    }
+
+    function toggleMultiSelectMode() {
+        multiSelectMode = !multiSelectMode;
+        selectedDates.clear();
+        isDragging = false;
+        renderCalendar();
+    }
+
+    function clearMultiSelect() {
+        selectedDates.clear();
+        renderCalendar();
+    }
+
+    function setDateSelection(dateKey, isSelected) {
+        if (isSelected) selectedDates.add(dateKey);
+        else selectedDates.delete(dateKey);
+
+        const cellEl = document.querySelector(`.day-cell[data-date-key="${dateKey}"]`);
+        if (cellEl) cellEl.classList.toggle('multi-selected', isSelected);
+
+        const countEl = document.getElementById('multi-select-count');
+        if (countEl) countEl.innerText = `${selectedDates.size}일 선택됨`;
+    }
+
+    function applyStatusToDate(dateKey, status) {
+        if (!userMonthData.days) userMonthData.days = {};
+        if (!userMonthData.days[dateKey]) {
+            userMonthData.days[dateKey] = { earned: 0, used: 0, status: '근무', overtime: 0, memo: '' };
+        }
+        const data = userMonthData.days[dateKey];
+        if (data.status === '휴근' && status !== '휴근') data.overtime = Math.max(0, (data.overtime || 0) - 8.0);
+        data.status = status;
+        if (status === '휴근') data.overtime = (data.overtime || 0) + 8.0;
+
+        const dayNum = parseInt(dateKey.split('-')[2], 10);
+        const shift = getShiftForDay(dayNum, userMonthData);
+        const isMorning = shift && shift.includes("모닝");
+        if (['휴무', '연차', '검진', '휴직'].includes(status)) {
+            if (isMorning && data.earned === 1 && !data.manualEarned) data.earned = 0;
+        } else {
+            if (isMorning && data.earned === 0 && !data.resetByUser) data.earned = 1;
+        }
+    }
+
+    function applyBulkStatus(status) {
+        if (selectedDates.size === 0) { alert('선택된 날짜가 없습니다.'); return; }
+        if (!confirm(`선택한 ${selectedDates.size}일의 근무 상태를 '${status}'(으)로 변경할까요?`)) return;
+
+        selectedDates.forEach(dateKey => applyStatusToDate(dateKey, status));
+        selectedDates.clear();
+        saveData();
     }
 
     function renderCalendar() {
         document.getElementById('current-month-text').innerText = `${currentYear}년 ${currentMonth + 1}월`;
         const grid = document.getElementById('calendar-grid');
         grid.innerHTML = '';
+        grid.classList.toggle('multi-select-active', multiSelectMode);
 
         let prevYear = currentYear, prevMonth = currentMonth - 1;
         if (prevMonth < 0) { prevMonth = 11; prevYear--; }
@@ -654,6 +776,14 @@
         document.getElementById('summary-airport-tickets').innerText = `${finalAirportTickets} 개${airportSub}`;
         document.getElementById('summary-tip').innerText = `총 팁 : ${totalTip.toLocaleString()}원`;
         document.getElementById('summary-overtime').innerText = `${totalOvertime} h (${remainingWorkDays}일 남음)`;
+
+        const toggleBtn = document.getElementById('multi-select-toggle-btn');
+        toggleBtn.classList.toggle('active', multiSelectMode);
+        toggleBtn.innerText = multiSelectMode ? '✕ 선택모드 종료' : '🖐️ 여러 날짜 선택';
+
+        document.getElementById('multi-select-bar').style.display = multiSelectMode ? 'block' : 'none';
+        document.getElementById('multi-select-count').innerText = `${selectedDates.size}일 선택됨`;
+        document.querySelector('.detail-card').style.display = multiSelectMode ? 'none' : 'block';
 
         renderDetail();
     }
@@ -837,6 +967,8 @@
         if(currentMonth > 11) { currentMonth = 0; currentYear++; }
         selectedDay = 1;
         currentTicketType = '기본';
+        selectedDates.clear();
+        isDragging = false;
         loadData();
     }
 
