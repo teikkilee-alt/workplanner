@@ -57,6 +57,14 @@
         .day-cell.today { border: 1.5px solid #1976D2; }
         .day-cell.today .date-row { background: #1976D2 !important; color: #ffffff !important; font-weight: 900; }
 
+        /* 근무상태 글씨가 어떤 배경(오늘 강조 포함) 위에서도 잘 보이도록 흰색 테두리 효과 */
+        .status-badge {
+            font-weight: bold;
+            text-shadow:
+                -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff,
+                -1.5px 0 0 #fff, 1.5px 0 0 #fff, 0 -1.5px 0 #fff, 0 1.5px 0 #fff;
+        }
+
         /* 여러 날짜 드래그 선택 */
         .multi-select-toggle-btn { font-size: 12px; font-weight: bold; padding: 6px 12px; border-radius: 20px; border: 1.5px solid #1976D2; background: white; color: #1976D2; cursor: pointer; }
         .multi-select-toggle-btn.active { background: #1976D2; color: white; }
@@ -592,11 +600,11 @@
         else if (dayOfWeek === 6) dateColor = '#1976D2';
 
         let statusText = '';
-        if (dayData.status === '남') statusText = `<span style="color:#C2185B; font-weight:bold;"> (남)</span>`;
-        else if (dayData.status === '북') statusText = `<span style="color:#6A1B9A; font-weight:bold;"> (북)</span>`;
-        else if (dayData.status === '휴근') statusText = `<span style="color:#E65100; font-weight:bold;"> (휴근)</span>`;
-        else if (dayData.status === '검진') statusText = `<span style="color:#2E7D32; font-weight:bold;"> (검진)</span>`;
-        else if (dayData.status === '휴직') statusText = `<span style="color:#6D4C41; font-weight:bold;"> (휴직)</span>`;
+        if (dayData.status === '남') statusText = `<span class="status-badge" style="color:#C2185B;"> (남)</span>`;
+        else if (dayData.status === '북') statusText = `<span class="status-badge" style="color:#6A1B9A;"> (북)</span>`;
+        else if (dayData.status === '휴근') statusText = `<span class="status-badge" style="color:#E65100;"> (휴근)</span>`;
+        else if (dayData.status === '검진') statusText = `<span class="status-badge" style="color:#1B5E20;"> (검진)</span>`;
+        else if (dayData.status === '휴직') statusText = `<span class="status-badge" style="color:#6D4C41;"> (휴직)</span>`;
 
         let memoIcon = dayData.memo ? `<span style="color:#2E7D32; font-weight:bold;"> ✔</span>` : '';
 
